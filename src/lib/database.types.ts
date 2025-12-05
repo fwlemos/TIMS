@@ -177,6 +177,82 @@ export type Database = {
                 Relationships: []
             }
 
+            lost_reasons: {
+                Row: {
+                    id: string
+                    reason: string
+                    is_predefined: boolean
+                    is_active: boolean
+                    sort_order: number
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    reason: string
+                    is_predefined?: boolean
+                    is_active?: boolean
+                    sort_order?: number
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    reason?: string
+                    is_predefined?: boolean
+                    is_active?: boolean
+                    sort_order?: number
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+
+            opportunity_activities: {
+                Row: {
+                    id: string
+                    opportunity_id: string
+                    activity_type: 'follow_up' | 'call' | 'email' | 'meeting'
+                    description: string | null
+                    activity_date: string
+                    created_by: string | null
+                    created_at: string
+                    updated_at: string
+                    deleted_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    opportunity_id: string
+                    activity_type: 'follow_up' | 'call' | 'email' | 'meeting'
+                    description?: string | null
+                    activity_date?: string
+                    created_by?: string | null
+                    created_at?: string
+                    updated_at?: string
+                    deleted_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    opportunity_id?: string
+                    activity_type?: 'follow_up' | 'call' | 'email' | 'meeting'
+                    description?: string | null
+                    activity_date?: string
+                    created_by?: string | null
+                    created_at?: string
+                    updated_at?: string
+                    deleted_at?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "opportunity_activities_opportunity_id_fkey"
+                        columns: ["opportunity_id"]
+                        isOneToOne: false
+                        referencedRelation: "opportunities"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+
             opportunities: {
                 Row: {
                     assigned_to: string | null
@@ -200,6 +276,8 @@ export type Database = {
                     tags: string[] | null
                     title: string
                     updated_at: string
+                    won_order_description: string | null
+                    won_purchase_order_url: string | null
                 }
                 Insert: {
                     assigned_to?: string | null
@@ -223,6 +301,8 @@ export type Database = {
                     tags?: string[] | null
                     title: string
                     updated_at?: string
+                    won_order_description?: string | null
+                    won_purchase_order_url?: string | null
                 }
                 Update: {
                     assigned_to?: string | null
@@ -246,6 +326,8 @@ export type Database = {
                     tags?: string[] | null
                     title?: string
                     updated_at?: string
+                    won_order_description?: string | null
+                    won_purchase_order_url?: string | null
                 }
                 Relationships: [
                     {
@@ -550,3 +632,8 @@ export type Document = Tables<"documents">
 export type LeadOrigin = Enums<"lead_origin">
 export type Office = Enums<"office">
 export type ResourceType = Enums<"resource_type">
+
+// New types for Opportunity Visualization feature
+export type LostReason = Tables<"lost_reasons">
+export type OpportunityActivity = Tables<"opportunity_activities">
+export type ActivityType = OpportunityActivity['activity_type']

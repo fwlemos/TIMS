@@ -7,6 +7,7 @@ import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import Database from '@/pages/Database'
 import CRM from '@/pages/CRM'
+import OpportunityDetail from '@/pages/OpportunityDetail'
 import Settings from '@/pages/Settings'
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
                             <Route path="/" element={<Dashboard />} />
                             <Route path="/database" element={<Database />} />
                             <Route path="/crm" element={<CRM />} />
+                            <Route path="/crm/opportunities/:opportunityId" element={<OpportunityDetail />} />
                             <Route path="/settings" element={<Settings />} />
                         </Route>
 
