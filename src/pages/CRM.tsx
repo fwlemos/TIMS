@@ -22,9 +22,12 @@ export default function CRM() {
     const {
         opportunities,
         stages,
+        opportunitiesByStage,
         loading,
         createOpportunity,
         updateOpportunity,
+        moveOpportunity,
+        setOpportunities,
     } = useOpportunities()
 
     const handleCardClick = (opportunity: OpportunityWithRelations) => {
@@ -34,7 +37,7 @@ export default function CRM() {
     const handleCreate = async (data: Parameters<typeof createOpportunity>[0]) => {
         try {
             await createOpportunity(data)
-            setShowCreatePanel(false)
+            setShowCreatePanel(false) // Optimistic update handles the Kanban refresh
         } catch (error) {
             console.error('Error creating opportunity:', error)
             const err = error as { message?: string }
@@ -115,7 +118,15 @@ export default function CRM() {
             {/* Content */}
             <div className="flex-1 min-h-0">
                 {viewMode === 'kanban' ? (
-                    <KanbanBoard onCardClick={handleCardClick} />
+                    <KanbanBoard
+                        stages={stages}
+                        opportunitiesByStage={opportunitiesByStage}
+                        opportunities={opportunities}
+                        loading={loading}
+                        onCardClick={handleCardClick}
+                        onMoveOpportunity={moveOpportunity}
+                        setOpportunities={setOpportunities}
+                    />
                 ) : (
                     <ListView
                         opportunities={opportunities}

@@ -4,7 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 import { useContacts } from '@/hooks/useContacts'
+import { useDocuments } from '@/hooks/useDocuments'
 import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from '@/components/shared/RelationalField'
+import { DocumentsList } from '@/components/documents/DocumentsList'
+import { supabase } from '@/lib/supabase'
 import type { Company, InsertTables } from '@/lib/database.types'
 
 const companySchema = z.object({
@@ -38,15 +41,14 @@ const contactFormSchema: FormField[] = [
 export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
     const { contacts, createContact, refetch } = useContacts()
     const [contactSearch, setContactSearch] = useState('')
-    // Load existing contacts for this company if editing, or empty if creating
-    // Note: contacts list from hook contains all contacts. We need to filter for initial value?
-    // If editing, 'company' prop has ID. But 'contacts' list in hook might not automatically link?
-    // We can find contacts where contact.company_id === company.id.
-    // However, for correct initial state in react-hook-form, we should calculate this.
 
-    // We can't easily set defaultValues for contact_ids synchronously if contacts depends on async fetch,
-    // but contacts from useContacts are likely already loaded if Database page loaded them.
-    // Let's compute initialContactIds.
+    // Pre-generate ID for new companies to allow document uploads before save
+    const [entityId] = useState(() => company?.id || crypto.randomUUID())
+    const isEditing = !!company
+
+    // For cleanup on cancel
+    const { documents } = useDocuments(entityId, 'companies')
+
     const initialContactIds = useMemo(() => {
         if (!company) return []
         return contacts
@@ -74,7 +76,8 @@ export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
     })
 
     const handleFormSubmit = async (data: CompanyFormData) => {
-        await onSubmit({
+        const companyData: CompanySubmitData & { id?: string } = {
+            id: isEditing ? undefined : entityId,
             ...data,
             tax_id: data.tax_id || null,
             address: data.address || null,
@@ -82,7 +85,36 @@ export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
             website: data.website || null,
             observation: data.observation || null,
             contact_ids: selectedContactIds,
-        })
+        }
+        await onSubmit(companyData as CompanySubmitData)
+    }
+
+    const handleCancel = async () => {
+        // If new company with documents, clean them up
+        if (!isEditing && documents.length > 0) {
+            try {
+                const { data: docs } = await supabase
+                    .from('documents')
+                    .select('id, file_url')
+                    .eq('entity_id', entityId)
+                    .eq('entity_type', 'companies')
+
+                if (docs && docs.length > 0) {
+                    await supabase.storage
+                        .from('documents')
+                        .remove(docs.map(d => d.file_url))
+
+                    await supabase
+                        .from('documents')
+                        .delete()
+                        .eq('entity_id', entityId)
+                        .eq('entity_type', 'companies')
+                }
+            } catch (error) {
+                console.error('Error cleaning up documents:', error)
+            }
+        }
+        onCancel()
     }
 
     const contactOptions = useMemo(() =>
@@ -97,15 +129,11 @@ export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
     )
 
     const handleCreateContact = useCallback(async (data: Record<string, unknown>): Promise<string | null> => {
-        // If creating a contact inline from CompanyForm, we can't link it to THIS company yet (if new).
-        // If editing, we could pass company_id: company.id.
-        // But for simplicity, create it unlinked, and rely on the multi-select value to link it on submit.
         const result = await createContact({
             name: data.name as string,
             email: (data.email as string) || null,
             phone: (data.phone as string) || null,
             observation: (data.observation as string) || null,
-            // company_id: company?.id // Optional: link immediately if editing
         })
         return result?.id || null
     }, [createContact])
@@ -197,13 +225,11 @@ export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
                     nestedFormSchema={contactFormSchema}
                     value={selectedContactIds}
                     onChange={(val) => {
-                        // Handle multi-select value (string[])
                         if (Array.isArray(val)) {
                             setSelectedContactIds(val)
                         } else if (val === null) {
                             setSelectedContactIds([])
                         } else {
-                            // Should not happen in multi mode usually, but if single ID passed
                             setSelectedContactIds([val])
                         }
                     }}
@@ -227,8 +253,13 @@ export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
                 />
             </div>
 
+            {/* Documents Section */}
+            <div className="pt-4 border-t border-border">
+                <DocumentsList entityId={entityId} entityType="companies" />
+            </div>
+
             <div className="flex gap-3 justify-end pt-4">
-                <button type="button" onClick={onCancel} className="btn-outline">
+                <button type="button" onClick={handleCancel} className="btn-outline">
                     Cancel
                 </button>
                 <button type="submit" disabled={isSubmitting} className="btn-primary">

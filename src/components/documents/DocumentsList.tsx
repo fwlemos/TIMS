@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { FileText, Download, Trash2, Loader2, File as FileIcon } from 'lucide-react'
+import { Download, Trash2, Loader2, File as FileIcon } from 'lucide-react'
 import { useDocuments } from '@/hooks/useDocuments'
 import { DocumentUpload } from './DocumentUpload'
-import { clsx } from 'clsx'
 import type { Document } from '@/lib/database.types'
 
 interface DocumentsListProps {

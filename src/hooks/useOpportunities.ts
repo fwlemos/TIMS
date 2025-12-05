@@ -28,8 +28,8 @@ export function useOpportunities() {
         return data || []
     }, [])
 
-    const fetchOpportunities = useCallback(async () => {
-        setLoading(true)
+    const fetchOpportunities = useCallback(async (showLoading = true) => {
+        if (showLoading) setLoading(true)
         setError(null)
 
         const [stagesData, opportunitiesResult] = await Promise.all([
@@ -65,46 +65,79 @@ export function useOpportunities() {
     const createOpportunity = async (opportunity: InsertTables<'opportunities'>) => {
         // Get the Lead Backlog stage
         const leadBacklogStage = stages.find(s => s.order_index === 0)
+        const stageId = opportunity.stage_id || leadBacklogStage?.id
 
         const { data, error } = await supabase
             .from('opportunities')
             .insert({
                 ...opportunity,
-                stage_id: opportunity.stage_id || leadBacklogStage?.id,
+                stage_id: stageId,
             })
-            .select()
+            .select(`
+                *,
+                contact:contacts(id, name),
+                company:companies(id, name),
+                product:products(id, name),
+                stage:pipeline_stages(*)
+            `)
             .single()
 
         if (error) throw error
 
-        // Log creation
-        await supabase.from('opportunity_history').insert({
+        // Optimistic update: Add new opportunity to state
+        setOpportunities(prev => [data, ...prev])
+
+        // Log creation in background (don't await)
+        supabase.from('opportunity_history').insert({
             opportunity_id: data.id,
             action: 'created',
             new_value: data.title,
         })
 
-        await fetchOpportunities()
         return data
     }
 
     const updateOpportunity = async (id: string, updates: UpdateTables<'opportunities'>) => {
+        // Optimistic update: Update in local state immediately
+        setOpportunities(prev => prev.map(o =>
+            o.id === id ? { ...o, ...updates } : o
+        ))
+
         const { data, error } = await supabase
             .from('opportunities')
             .update(updates)
             .eq('id', id)
-            .select()
+            .select(`
+                *,
+                contact:contacts(id, name),
+                company:companies(id, name),
+                product:products(id, name),
+                stage:pipeline_stages(*)
+            `)
             .single()
 
-        if (error) throw error
-        await fetchOpportunities()
+        if (error) {
+            // Revert on error - refetch without loading indicator
+            await fetchOpportunities(false)
+            throw error
+        }
+
+        // Update with full data from server
+        setOpportunities(prev => prev.map(o => o.id === id ? data : o))
         return data
     }
 
     const moveOpportunity = async (id: string, newStageId: string) => {
         const opportunity = opportunities.find(o => o.id === id)
-        const oldStage = opportunity?.stage
+        if (!opportunity) return null
+
+        const oldStageId = opportunity.stage_id
         const newStage = stages.find(s => s.id === newStageId)
+
+        // Optimistic update: Move opportunity in local state immediately
+        setOpportunities(prev => prev.map(o =>
+            o.id === id ? { ...o, stage_id: newStageId, stage: newStage || null } : o
+        ))
 
         const { data, error } = await supabase
             .from('opportunities')
@@ -113,29 +146,60 @@ export function useOpportunities() {
             .select()
             .single()
 
-        if (error) throw error
+        if (error) {
+            // Revert optimistic update on error
+            const oldStage = stages.find(s => s.id === oldStageId)
+            setOpportunities(prev => prev.map(o =>
+                o.id === id ? { ...o, stage_id: oldStageId, stage: oldStage || null } : o
+            ))
+            throw error
+        }
 
-        // Log stage change
-        await supabase.from('opportunity_history').insert({
+        // Log stage change in background (don't await)
+        const oldStageName = stages.find(s => s.id === oldStageId)?.name
+        supabase.from('opportunity_history').insert({
             opportunity_id: id,
             action: 'stage_changed',
             field_name: 'stage_id',
-            old_value: oldStage?.name,
+            old_value: oldStageName,
             new_value: newStage?.name,
         })
 
-        await fetchOpportunities()
         return data
     }
 
     const deleteOpportunity = async (id: string) => {
+        // Optimistic update: Remove from local state immediately
+        const deletedOpp = opportunities.find(o => o.id === id)
+        setOpportunities(prev => prev.filter(o => o.id !== id))
+
         const { error } = await supabase
             .from('opportunities')
             .update({ deleted_at: new Date().toISOString() })
             .eq('id', id)
 
-        if (error) throw error
-        await fetchOpportunities()
+        if (error) {
+            // Revert on error
+            if (deletedOpp) {
+                setOpportunities(prev => [...prev, deletedOpp])
+            }
+            throw error
+        }
+    }
+
+    // Reorder opportunities within a stage (for sortable)
+    const reorderOpportunities = (activeId: string, overId: string) => {
+        setOpportunities(prev => {
+            const activeIndex = prev.findIndex(o => o.id === activeId)
+            const overIndex = prev.findIndex(o => o.id === overId)
+
+            if (activeIndex === -1 || overIndex === -1) return prev
+
+            const newArray = [...prev]
+            const [removed] = newArray.splice(activeIndex, 1)
+            newArray.splice(overIndex, 0, removed)
+            return newArray
+        })
     }
 
     // Group opportunities by stage
@@ -150,10 +214,13 @@ export function useOpportunities() {
         opportunitiesByStage,
         loading,
         error,
+        setOpportunities, // Expose for drag-over reordering
         refetch: fetchOpportunities,
         createOpportunity,
         updateOpportunity,
         moveOpportunity,
         deleteOpportunity,
+        reorderOpportunities,
     }
 }
+

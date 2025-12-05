@@ -4,7 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 import { useCompanies } from '@/hooks/useCompanies'
+import { useDocuments } from '@/hooks/useDocuments'
 import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from '@/components/shared/RelationalField'
+import { DocumentsList } from '@/components/documents/DocumentsList'
+import { supabase } from '@/lib/supabase'
 import type { Product, InsertTables } from '@/lib/database.types'
 
 const productSchema = z.object({
@@ -38,6 +41,13 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
     const [manufacturerSearch, setManufacturerSearch] = useState('')
     const [selectedManufacturerId, setSelectedManufacturerId] = useState<string | null>(product?.manufacturer_id || null)
 
+    // Pre-generate ID for new products to allow document uploads before save
+    const [entityId] = useState(() => product?.id || crypto.randomUUID())
+    const isEditing = !!product
+
+    // For cleanup on cancel
+    const { documents } = useDocuments(entityId, 'products')
+
     const {
         register,
         handleSubmit,
@@ -54,13 +64,48 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
     })
 
     const handleFormSubmit = async (data: ProductFormData) => {
-        await onSubmit({
+        // Use the pre-generated ID for new products
+        const productData: InsertTables<'products'> & { id?: string } = {
+            id: isEditing ? undefined : entityId,
             ...data,
             manufacturer_id: selectedManufacturerId,
             description: data.description || null,
             ncm: data.ncm || null,
             catalog_url: data.catalog_url || null,
-        })
+        }
+
+        await onSubmit(productData as InsertTables<'products'>)
+    }
+
+    const handleCancel = async () => {
+        // If new product with documents, clean them up
+        if (!isEditing && documents.length > 0) {
+            try {
+                // Fetch and delete orphaned documents
+                const { data: docs } = await supabase
+                    .from('documents')
+                    .select('id, file_url')
+                    .eq('entity_id', entityId)
+                    .eq('entity_type', 'products')
+
+                if (docs && docs.length > 0) {
+                    // Delete from storage
+                    await supabase.storage
+                        .from('documents')
+                        .remove(docs.map(d => d.file_url))
+
+                    // Delete from DB
+                    await supabase
+                        .from('documents')
+                        .delete()
+                        .eq('entity_id', entityId)
+                        .eq('entity_type', 'products')
+                }
+            } catch (error) {
+                console.error('Error cleaning up documents:', error)
+            }
+        }
+        onCancel()
     }
 
     const manufacturerOptions = useMemo(() =>
@@ -132,7 +177,7 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
                     searchFields={['name', 'tax_id']}
                     nestedFormSchema={manufacturerFormSchema}
                     value={selectedManufacturerId}
-                    onChange={setSelectedManufacturerId}
+                    onChange={(val) => setSelectedManufacturerId(val as string | null)}
                     options={manufacturerOptions}
                     onSearch={setManufacturerSearch}
                     onCreate={handleCreateManufacturer}
@@ -153,29 +198,21 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
             </div>
 
             <div>
-                <label className="block text-sm font-medium mb-1.5">Catalog URL</label>
-                <input
-                    {...register('catalog_url')}
-                    type="url"
-                    className="input"
-                    placeholder="https://example.com/catalog.pdf"
-                />
-                {errors.catalog_url && (
-                    <p className="text-destructive text-sm mt-1">{errors.catalog_url.message}</p>
-                )}
-            </div>
-
-            <div>
                 <label className="block text-sm font-medium mb-1.5">Description</label>
                 <textarea
                     {...register('description')}
-                    className="input min-h-[80px] resize-y"
+                    className="input min-h-[60px] resize-y"
                     placeholder="Product description..."
                 />
             </div>
 
+            {/* Documents Section */}
+            <div className="pt-4 border-t border-border">
+                <DocumentsList entityId={entityId} entityType="products" />
+            </div>
+
             <div className="flex gap-3 justify-end pt-4">
-                <button type="button" onClick={onCancel} className="btn-outline">
+                <button type="button" onClick={handleCancel} className="btn-outline">
                     Cancel
                 </button>
                 <button type="submit" disabled={isSubmitting} className="btn-primary">

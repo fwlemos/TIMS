@@ -27,7 +27,7 @@ const LEAD_ORIGINS: { value: LeadOrigin; label: string }[] = [
 
 const opportunitySchema = z.object({
     title: z.string().optional(),
-    lead_origin: z.enum(LEAD_ORIGIN_VALUES).optional().nullable(),
+    lead_origin: z.enum(LEAD_ORIGIN_VALUES, { required_error: 'Lead origin is required' }),
 })
 
 type OpportunityFormData = z.infer<typeof opportunitySchema>
@@ -112,6 +112,10 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
         opportunity?.product_id || null
     )
 
+    // Validation error states for required fields not in the form schema
+    const [contactError, setContactError] = useState<string | null>(null)
+    const [productError, setProductError] = useState<string | null>(null)
+
     // Search states
     const [contactSearch, setContactSearch] = useState('')
     const [productSearch, setProductSearch] = useState('')
@@ -126,25 +130,49 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
         resolver: zodResolver(opportunitySchema),
         defaultValues: {
             title: opportunity?.title || '',
-            lead_origin: opportunity?.lead_origin || null,
+            lead_origin: opportunity?.lead_origin || undefined,
         },
     })
 
     const handleFormSubmit = async (data: OpportunityFormData) => {
-        // Generate title from contact/product if not provided
-        const contact = contacts.find(c => c.id === selectedContactId)
-        const product = products.find(p => p.id === selectedProductId)
-        const generatedTitle = data.title ||
-            [contact?.name, product?.name].filter(Boolean).join(' - ') ||
-            'New Opportunity'
+        // Validate required fields not in the form schema
+        let hasErrors = false
 
-        await onSubmit({
-            title: generatedTitle,
-            contact_id: selectedContactId,
-            company_id: contact?.company_id || null, // Use company from contact
-            product_id: selectedProductId,
-            lead_origin: data.lead_origin || null,
-        })
+        if (!selectedContactId) {
+            setContactError('Contact is required')
+            hasErrors = true
+        } else {
+            setContactError(null)
+        }
+
+        if (!selectedProductId) {
+            setProductError('Product is required')
+            hasErrors = true
+        } else {
+            setProductError(null)
+        }
+
+        if (hasErrors) return
+
+        try {
+            // Generate title from contact/product if not provided
+            const contact = contacts.find(c => c.id === selectedContactId)
+            const product = products.find(p => p.id === selectedProductId)
+            const generatedTitle = data.title ||
+                [contact?.name, product?.name].filter(Boolean).join(' - ') ||
+                'New Opportunity'
+
+            await onSubmit({
+                title: generatedTitle,
+                contact_id: selectedContactId,
+                company_id: contact?.company_id || null, // Use company from contact
+                product_id: selectedProductId,
+                lead_origin: data.lead_origin,
+            })
+        } catch (error) {
+            console.error('OpportunityForm submit error:', error)
+            throw error // Re-throw so CRM.tsx can handle it
+        }
     }
 
     // Convert entities to RelationalOptions
@@ -271,8 +299,12 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
         manufacturerOptions, handleCreateManufacturer, refetchManufacturers, getManufacturerDisplay
     ])
 
+    const onFormError = (errors: Record<string, unknown>) => {
+        console.error('Form validation errors:', errors)
+    }
+
     return (
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(handleFormSubmit, onFormError)} className="space-y-6">
             {/* Title (Optional) */}
             <div>
                 <label className="block text-sm font-medium mb-1.5">
@@ -292,7 +324,7 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
             <div>
                 <label className="block text-sm font-medium mb-2 flex items-center gap-2">
                     <User className="w-4 h-4 text-muted-foreground" />
-                    Contact
+                    Contact <span className="text-destructive">*</span>
                 </label>
                 <RelationalField
                     entityType="contact"
@@ -301,7 +333,10 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                     searchFields={['name', 'email', 'phone']}
                     nestedFormSchema={contactFormSchema}
                     value={selectedContactId}
-                    onChange={setSelectedContactId}
+                    onChange={(val) => {
+                        setSelectedContactId(val as string | null)
+                        if (val) setContactError(null)
+                    }}
                     options={contactOptions}
                     onSearch={setContactSearch}
                     onCreate={handleCreateContact}
@@ -310,13 +345,16 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                     canCreate
                     nestedFieldsConfig={nestedFieldsConfig}
                 />
+                {contactError && (
+                    <p className="text-destructive text-sm mt-1">{contactError}</p>
+                )}
             </div>
 
             {/* Product - RelationalField with nested Manufacturer */}
             <div>
                 <label className="block text-sm font-medium mb-2 flex items-center gap-2">
                     <Package className="w-4 h-4 text-muted-foreground" />
-                    Product
+                    Product <span className="text-destructive">*</span>
                 </label>
                 <RelationalField
                     entityType="product"
@@ -325,7 +363,10 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                     searchFields={['name']}
                     nestedFormSchema={productFormSchema}
                     value={selectedProductId}
-                    onChange={setSelectedProductId}
+                    onChange={(val) => {
+                        setSelectedProductId(val as string | null)
+                        if (val) setProductError(null)
+                    }}
                     options={productOptions}
                     onSearch={setProductSearch}
                     onCreate={handleCreateProduct}
@@ -334,11 +375,16 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                     canCreate
                     nestedFieldsConfig={nestedFieldsConfig}
                 />
+                {productError && (
+                    <p className="text-destructive text-sm mt-1">{productError}</p>
+                )}
             </div>
 
             {/* Lead Origin */}
             <div>
-                <label className="block text-sm font-medium mb-1.5">Lead Origin</label>
+                <label className="block text-sm font-medium mb-1.5">
+                    Lead Origin <span className="text-destructive">*</span>
+                </label>
                 <select {...register('lead_origin')} className="input">
                     <option value="">Select origin...</option>
                     {LEAD_ORIGINS.map((origin) => (
@@ -347,6 +393,9 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                         </option>
                     ))}
                 </select>
+                {errors.lead_origin && (
+                    <p className="text-destructive text-sm mt-1">{errors.lead_origin.message}</p>
+                )}
             </div>
 
             {/* Submit */}

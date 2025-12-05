@@ -4,7 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 import { useCompanies } from '@/hooks/useCompanies'
+import { useDocuments } from '@/hooks/useDocuments'
 import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from '@/components/shared/RelationalField'
+import { DocumentsList } from '@/components/documents/DocumentsList'
+import { supabase } from '@/lib/supabase'
 import type { Contact, InsertTables } from '@/lib/database.types'
 
 const contactSchema = z.object({
@@ -36,6 +39,13 @@ export function ContactForm({ contact, onSubmit, onCancel }: ContactFormProps) {
     const [companySearch, setCompanySearch] = useState('')
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(contact?.company_id || null)
 
+    // Pre-generate ID for new contacts to allow document uploads before save
+    const [entityId] = useState(() => contact?.id || crypto.randomUUID())
+    const isEditing = !!contact
+
+    // For cleanup on cancel
+    const { documents } = useDocuments(entityId, 'contacts')
+
     const {
         register,
         handleSubmit,
@@ -52,12 +62,42 @@ export function ContactForm({ contact, onSubmit, onCancel }: ContactFormProps) {
     })
 
     const handleFormSubmit = async (data: ContactFormData) => {
-        await onSubmit({
+        const contactData: InsertTables<'contacts'> & { id?: string } = {
+            id: isEditing ? undefined : entityId,
             ...data,
             phone: data.phone || null,
             company_id: selectedCompanyId,
             observation: data.observation || null,
-        })
+        }
+        await onSubmit(contactData as InsertTables<'contacts'>)
+    }
+
+    const handleCancel = async () => {
+        // If new contact with documents, clean them up
+        if (!isEditing && documents.length > 0) {
+            try {
+                const { data: docs } = await supabase
+                    .from('documents')
+                    .select('id, file_url')
+                    .eq('entity_id', entityId)
+                    .eq('entity_type', 'contacts')
+
+                if (docs && docs.length > 0) {
+                    await supabase.storage
+                        .from('documents')
+                        .remove(docs.map(d => d.file_url))
+
+                    await supabase
+                        .from('documents')
+                        .delete()
+                        .eq('entity_id', entityId)
+                        .eq('entity_type', 'contacts')
+                }
+            } catch (error) {
+                console.error('Error cleaning up documents:', error)
+            }
+        }
+        onCancel()
     }
 
     const companyOptions = useMemo(() =>
@@ -168,8 +208,13 @@ export function ContactForm({ contact, onSubmit, onCancel }: ContactFormProps) {
                 />
             </div>
 
+            {/* Documents Section */}
+            <div className="pt-4 border-t border-border">
+                <DocumentsList entityId={entityId} entityType="contacts" />
+            </div>
+
             <div className="flex gap-3 justify-end pt-4">
-                <button type="button" onClick={onCancel} className="btn-outline">
+                <button type="button" onClick={handleCancel} className="btn-outline">
                     Cancel
                 </button>
                 <button type="submit" disabled={isSubmitting} className="btn-primary">

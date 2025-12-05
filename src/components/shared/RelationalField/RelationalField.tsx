@@ -146,8 +146,8 @@ export function RelationalField({
         setCreateError(null)
     }, [])
 
-    const handleEdit = useCallback((id?: string) => {
-        console.log('Edit:', id)
+    const handleEdit = useCallback((_id?: string) => {
+        // Edit functionality handled by parent component
     }, [])
 
     // Check if we can nest further
