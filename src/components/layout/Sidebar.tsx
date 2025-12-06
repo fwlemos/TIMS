@@ -64,7 +64,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             className={clsx(
                 'fixed left-0 top-0 z-40 h-screen bg-[hsl(var(--sidebar-bg))] border-r border-[hsl(var(--sidebar-border))]',
                 'flex flex-col transition-all duration-300 ease-out',
-                collapsed ? 'w-[72px]' : 'w-[240px]'
+                collapsed ? 'w-[72px]' : 'w-[240px] shadow-2xl'
             )}
         >
             {/* Logo + Toggle at top */}

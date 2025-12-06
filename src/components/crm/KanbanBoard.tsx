@@ -37,10 +37,11 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
     const [activeOpportunity, setActiveOpportunity] = useState<OpportunityWithRelations | null>(null)
 
+    // Distance-based activation - must move 10px to start drag, allowing clicks
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                distance: 8,
+                distance: 10,
             },
         })
     )

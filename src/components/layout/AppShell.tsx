@@ -9,7 +9,7 @@ export function AppShell() {
         if (typeof window !== 'undefined') {
             return localStorage.getItem('sidebarCollapsed') === 'true'
         }
-        return false
+        return true // Default to collapsed for more screen space
     })
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -37,6 +37,14 @@ export function AppShell() {
 
     return (
         <div className="min-h-screen bg-background">
+            {/* Desktop Sidebar Overlay (when expanded) */}
+            {!sidebarCollapsed && (
+                <div
+                    className="hidden lg:block fixed inset-0 z-30 bg-black/20 transition-opacity duration-300"
+                    onClick={() => setSidebarCollapsed(true)}
+                />
+            )}
+
             {/* Desktop Sidebar */}
             <div className="hidden lg:block">
                 <Sidebar
@@ -66,12 +74,11 @@ export function AppShell() {
                 />
             </div>
 
-            {/* Main Content */}
+            {/* Main Content - Always use collapsed margin width for more screen space */}
             <div
                 className={clsx(
                     'transition-all duration-300 ease-out',
-                    'lg:ml-[240px]',
-                    sidebarCollapsed && 'lg:ml-[72px]'
+                    'lg:ml-[72px]' // Always use collapsed width margin
                 )}
             >
                 <Header

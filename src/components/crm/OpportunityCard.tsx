@@ -1,6 +1,7 @@
 import { clsx } from 'clsx'
 import { Building2, User, Package } from 'lucide-react'
 import type { OpportunityWithRelations } from '@/hooks/useOpportunities'
+import { UserAvatar } from '@/components/shared/UserAvatar'
 
 interface OpportunityCardProps {
     opportunity: OpportunityWithRelations
@@ -17,6 +18,10 @@ export function OpportunityCard({ opportunity, onClick, isDragging }: Opportunit
         }).format(value)
     }
 
+    // Get owner info - we'll use the assigned_to ID to show initials
+    // In the future, this could be expanded with actual user profile data
+    const ownerEmail = opportunity.assigned_to ? `user-${opportunity.assigned_to.substring(0, 8)}` : null
+
     return (
         <div
             onClick={onClick}
@@ -27,10 +32,18 @@ export function OpportunityCard({ opportunity, onClick, isDragging }: Opportunit
                 isDragging && 'shadow-soft-lg rotate-2 opacity-90'
             )}
         >
-            {/* Title */}
-            <h4 className="font-medium text-sm mb-3 line-clamp-2">
-                {opportunity.title}
-            </h4>
+            {/* Header with Title and Owner Avatar */}
+            <div className="flex items-start justify-between gap-2 mb-3">
+                <h4 className="font-medium text-sm line-clamp-2 flex-1">
+                    {opportunity.title}
+                </h4>
+                {opportunity.assigned_to && (
+                    <UserAvatar
+                        email={ownerEmail}
+                        size="sm"
+                    />
+                )}
+            </div>
 
             {/* Meta info */}
             <div className="space-y-2 text-xs text-muted-foreground">

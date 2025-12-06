@@ -160,9 +160,9 @@ export function RelationalDropdown({
                             role="option"
                             aria-selected={highlightedIndex === index}
                         >
-                            <p className="text-sm font-medium">{option.primaryText}</p>
+                            <div className="text-sm font-medium">{option.primaryText}</div>
                             {option.secondaryText && (
-                                <p className="text-xs text-muted-foreground">{option.secondaryText}</p>
+                                <div className="text-xs text-muted-foreground">{option.secondaryText}</div>
                             )}
                         </button>
                     ))

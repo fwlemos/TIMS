@@ -1,9 +1,10 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, XCircle, Loader2, User, Building2, Package, Check } from 'lucide-react'
+import { ArrowLeft, Calendar, XCircle, Loader2, User, Building2, Check, Package } from 'lucide-react'
 import { useState, useCallback, useMemo } from 'react'
 import { useOpportunityDetail } from '@/hooks/useOpportunityDetail'
-import { StageBreadcrumb } from '@/components/opportunity/StageBreadcrumb'
+import { StageBreadcrumb, StageColumns, RelatedEntitiesPanel } from '@/components/opportunity'
 import { LostReasonModal } from '@/components/crm/LostReasonModal'
+import { SlidePanel } from '@/components/shared/SlidePanel'
 import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from '@/components/shared/RelationalField'
 import { useContacts } from '@/hooks/useContacts'
 import { useCompanies } from '@/hooks/useCompanies'
@@ -68,6 +69,7 @@ const productFormSchema: FormField[] = [
         name: 'manufacturer_id',
         label: 'Manufacturer',
         type: 'relational',
+        required: true,
         relationalConfig: {
             entityType: 'manufacturer',
             entityLabel: 'Manufacturer',
@@ -109,6 +111,9 @@ export default function OpportunityDetail() {
     const [showLostModal, setShowLostModal] = useState(false)
     const [savingField, setSavingField] = useState<string | null>(null)
     const [savedField, setSavedField] = useState<string | null>(null)
+
+    // Entity selection panel state
+    const [editingEntity, setEditingEntity] = useState<'contact' | 'company' | 'product' | null>(null)
 
     // Calculate days since creation
     const getDaysOpen = () => {
@@ -208,35 +213,99 @@ export default function OpportunityDetail() {
         await updateStage(newStageId)
     }
 
-    // Convert entities to RelationalOptions
+    // Validate stage advancement - check required fields for current stage
+    const validateStageAdvance = useCallback((currentStageId: string, targetStageId: string): { valid: boolean; errors?: string[] } => {
+        const currentStage = stages.find(s => s.id === currentStageId)
+        const targetIndex = stages.findIndex(s => s.id === targetStageId)
+        const currentIndex = stages.findIndex(s => s.id === currentStageId)
+
+        // Allow moving backward without validation
+        if (targetIndex < currentIndex) {
+            return { valid: true }
+        }
+
+        const errors: string[] = []
+
+        // Get the current stage key
+        const stageKey = currentStage?.name.toLowerCase().replace(/\s+/g, '_')
+
+        // Lead Backlog requirements
+        if (stageKey === 'lead_backlog') {
+            if (!opportunity?.contact_id) {
+                errors.push('Contact is required')
+            }
+            if (!opportunity?.product_id && (!opportunity?.products || opportunity.products.length === 0)) {
+                errors.push('Product is required')
+            }
+            if (!opportunity?.lead_origin) {
+                errors.push('Lead Origin is required')
+            }
+        }
+
+        // Won stage requirements
+        if (targetStageId && stages.find(s => s.id === targetStageId)?.name.toLowerCase().includes('won')) {
+            if (!opportunity?.won_purchase_order_url && !opportunity?.won_order_description) {
+                errors.push('Purchase Order document OR Order Agreement description is required')
+            }
+        }
+
+        return {
+            valid: errors.length === 0,
+            errors: errors.length > 0 ? errors : undefined
+        }
+    }, [stages, opportunity])
+
+    // Convert entities to RelationalOptions with enhanced display
     const contactOptions = useMemo(() =>
         contacts
             .filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()))
-            .map(c => ({
-                id: c.id,
-                primaryText: c.name,
-                secondaryText: c.email || undefined,
-            })),
+            .map(c => {
+                const contactWithCompany = c as typeof c & { company?: { name: string } | null }
+                const companyName = contactWithCompany.company?.name
+                return {
+                    id: c.id,
+                    primaryText: c.name,
+                    secondaryText: (
+                        <div className="flex flex-col gap-0.5">
+                            {c.email && <span className="truncate">{c.email}</span>}
+                            {companyName && (
+                                <span className="flex items-center gap-1.5 opacity-90">
+                                    <Building2 className="w-3 h-3" />
+                                    <span className="truncate">{companyName}</span>
+                                </span>
+                            )}
+                        </div>
+                    ),
+                }
+            }),
         [contacts, contactSearch]
     )
 
     const companyOptions = useMemo(() =>
         companies
             .filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
-            .map(c => ({
-                id: c.id,
-                primaryText: c.name,
-            })),
+            .map(c => {
+                const companyWithDetails = c as typeof c & { phone?: string; address?: string }
+                return {
+                    id: c.id,
+                    primaryText: c.name,
+                    secondaryText: companyWithDetails.phone || companyWithDetails.address || undefined,
+                }
+            }),
         [companies, companySearch]
     )
 
     const productOptions = useMemo(() =>
         products
             .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
-            .map(p => ({
-                id: p.id,
-                primaryText: p.name,
-            })),
+            .map(p => {
+                const productWithManufacturer = p as typeof p & { manufacturer?: { name: string } | null }
+                return {
+                    id: p.id,
+                    primaryText: p.name,
+                    secondaryText: productWithManufacturer.manufacturer?.name || 'No Manufacturer',
+                }
+            }),
         [products, productSearch]
     )
 
@@ -250,20 +319,55 @@ export default function OpportunityDetail() {
         [manufacturers, manufacturerSearch]
     )
 
-    // Get display functions
+    // Get display functions with enhanced info
     const getContactDisplay = useCallback((id: string): RelationalOption | undefined => {
         const contact = contacts.find(c => c.id === id)
-        return contact ? { id: contact.id, primaryText: contact.name, secondaryText: contact.email || undefined } : undefined
+        if (!contact) return undefined
+
+        const contactWithCompany = contact as typeof contact & { company?: { name: string } | null }
+        const companyName = contactWithCompany.company?.name
+
+        return {
+            id: contact.id,
+            primaryText: contact.name,
+            secondaryText: (
+                <div className="flex flex-col gap-0.5">
+                    {contact.email && <span className="truncate">{contact.email}</span>}
+                    {companyName && (
+                        <span className="flex items-center gap-1.5 opacity-90">
+                            <Building2 className="w-3 h-3" />
+                            <span className="truncate">{companyName}</span>
+                        </span>
+                    )}
+                </div>
+            )
+        }
     }, [contacts])
 
     const getCompanyDisplay = useCallback((id: string): RelationalOption | undefined => {
         const company = companies.find(c => c.id === id)
-        return company ? { id: company.id, primaryText: company.name } : undefined
+        if (!company) return undefined
+
+        const companyWithDetails = company as typeof company & { phone?: string; address?: string }
+
+        return {
+            id: company.id,
+            primaryText: company.name,
+            secondaryText: companyWithDetails.phone || companyWithDetails.address || undefined
+        }
     }, [companies])
 
     const getProductDisplay = useCallback((id: string): RelationalOption | undefined => {
         const product = products.find(p => p.id === id)
-        return product ? { id: product.id, primaryText: product.name } : undefined
+        if (!product) return undefined
+
+        const productWithManufacturer = product as typeof product & { manufacturer?: { name: string } | null }
+
+        return {
+            id: product.id,
+            primaryText: product.name,
+            secondaryText: productWithManufacturer.manufacturer?.name || 'No Manufacturer'
+        }
     }, [products])
 
     const getManufacturerDisplay = useCallback((id: string): RelationalOption | undefined => {
@@ -450,100 +554,27 @@ export default function OpportunityDetail() {
                         stages={stages}
                         currentStageId={opportunity.stage_id}
                         onStageClick={handleStageChange}
+                        validateStageAdvance={validateStageAdvance}
                         disabled={isTerminal}
                     />
                 </div>
             </div>
 
+            {/* Stage Fields Columns */}
+            <StageColumns
+                opportunity={opportunity}
+                stages={stages}
+                currentStageId={opportunity.stage_id}
+                onFieldChange={handleFieldChange}
+                disabled={isTerminal}
+                savingField={savingField}
+                savedField={savedField}
+            />
+
             {/* Main Content Area */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
-                {/* Left column - Editable Fields */}
+                {/* Left column - Opportunity Details */}
                 <div className="lg:col-span-2 space-y-6">
-                    {/* Related Entities - Editable Cards */}
-                    <div className="bg-card rounded-xl border border-border p-6">
-                        <h2 className="text-lg font-semibold mb-4">Related Entities</h2>
-
-                        <div className="space-y-4">
-                            {/* Contact - Editable */}
-                            <div>
-                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-                                    <User className="w-4 h-4 text-muted-foreground" />
-                                    Contact
-                                    <FieldIndicator field="contact" />
-                                </label>
-                                <RelationalField
-                                    entityType="contact"
-                                    entityLabel="Contact"
-                                    displayFields={['name', 'email']}
-                                    searchFields={['name', 'email', 'phone']}
-                                    nestedFormSchema={contactFormSchema}
-                                    value={opportunity.contact_id}
-                                    onChange={handleContactChange}
-                                    options={contactOptions}
-                                    onSearch={setContactSearch}
-                                    onCreate={handleCreateContact}
-                                    onRefresh={refetchContacts}
-                                    getRecordDisplay={getContactDisplay}
-                                    nestedFieldsConfig={nestedFieldsConfig}
-                                    disabled={isTerminal}
-                                    canCreate
-                                />
-                            </div>
-
-                            {/* Company - Editable */}
-                            <div>
-                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-                                    <Building2 className="w-4 h-4 text-muted-foreground" />
-                                    Company
-                                    <FieldIndicator field="company" />
-                                </label>
-                                <RelationalField
-                                    entityType="company"
-                                    entityLabel="Company"
-                                    displayFields={['name']}
-                                    searchFields={['name']}
-                                    nestedFormSchema={companyFormSchema}
-                                    value={opportunity.company_id}
-                                    onChange={handleCompanyChange}
-                                    options={companyOptions}
-                                    onSearch={setCompanySearch}
-                                    onCreate={handleCreateCompany}
-                                    onRefresh={refetchCompanies}
-                                    getRecordDisplay={getCompanyDisplay}
-                                    disabled={isTerminal}
-                                    canCreate
-                                />
-                            </div>
-
-                            {/* Products - Multi-select */}
-                            <div>
-                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
-                                    <Package className="w-4 h-4 text-muted-foreground" />
-                                    Products
-                                    <FieldIndicator field="products" />
-                                </label>
-                                <RelationalField
-                                    entityType="product"
-                                    entityLabel="Product"
-                                    displayFields={['name']}
-                                    searchFields={['name']}
-                                    nestedFormSchema={productFormSchema}
-                                    mode="multi"
-                                    value={selectedProductIds}
-                                    onChange={handleProductsChange}
-                                    options={productOptions}
-                                    onSearch={setProductSearch}
-                                    onCreate={handleCreateProduct}
-                                    onRefresh={refetchProducts}
-                                    getRecordDisplay={getProductDisplay}
-                                    nestedFieldsConfig={nestedFieldsConfig}
-                                    disabled={isTerminal}
-                                    canCreate
-                                />
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Opportunity Details */}
                     <div className="bg-card rounded-xl border border-border p-6">
                         <h2 className="text-lg font-semibold mb-4">Opportunity Details</h2>
@@ -673,24 +704,113 @@ export default function OpportunityDetail() {
                     </div>
                 </div>
 
-                {/* Right column - Info sidebar */}
-                <div className="bg-card rounded-xl border border-border p-6">
-                    <h2 className="text-lg font-semibold mb-4">Information</h2>
+                {/* Right column - Information sidebar with Related Entities at top */}
+                <div className="space-y-6">
+                    {/* Related Entities - Now in Information sidebar */}
+                    <div className="bg-card rounded-xl border border-border p-6">
+                        <h2 className="text-lg font-semibold mb-4">Related Entities</h2>
 
-                    <div className="space-y-4">
-                        {/* Responsible - placeholder for user dropdown */}
-                        <div>
-                            <label className="text-sm text-muted-foreground block mb-1">Responsible</label>
-                            <p className="font-medium py-2 text-muted-foreground italic">
-                                {opportunity.assigned_to ? 'Assigned user' : 'No one assigned'}
-                            </p>
+                        <div className="space-y-4">
+                            {/* Contact - Editable */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                    <User className="w-4 h-4 text-muted-foreground" />
+                                    Contact
+                                    <FieldIndicator field="contact" />
+                                </label>
+                                <RelationalField
+                                    entityType="contact"
+                                    entityLabel="Contact"
+                                    displayFields={['name', 'email']}
+                                    searchFields={['name', 'email', 'phone']}
+                                    nestedFormSchema={contactFormSchema}
+                                    value={opportunity.contact_id}
+                                    onChange={handleContactChange}
+                                    options={contactOptions}
+                                    onSearch={setContactSearch}
+                                    onCreate={handleCreateContact}
+                                    onRefresh={refetchContacts}
+                                    getRecordDisplay={getContactDisplay}
+                                    nestedFieldsConfig={nestedFieldsConfig}
+                                    disabled={isTerminal}
+                                    canCreate
+                                />
+                            </div>
+
+                            {/* Company - Editable */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                                    Company
+                                    <FieldIndicator field="company" />
+                                </label>
+                                <RelationalField
+                                    entityType="company"
+                                    entityLabel="Company"
+                                    displayFields={['name']}
+                                    searchFields={['name']}
+                                    nestedFormSchema={companyFormSchema}
+                                    value={opportunity.company_id}
+                                    onChange={handleCompanyChange}
+                                    options={companyOptions}
+                                    onSearch={setCompanySearch}
+                                    onCreate={handleCreateCompany}
+                                    onRefresh={refetchCompanies}
+                                    getRecordDisplay={getCompanyDisplay}
+                                    nestedFieldsConfig={nestedFieldsConfig}
+                                    disabled={isTerminal}
+                                    canCreate
+                                />
+                            </div>
+
+                            {/* Products - Multi-select */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                    <Package className="w-4 h-4 text-muted-foreground" />
+                                    Products
+                                    <FieldIndicator field="products" />
+                                </label>
+                                <RelationalField
+                                    entityType="product"
+                                    entityLabel="Product"
+                                    displayFields={['name']}
+                                    searchFields={['name']}
+                                    nestedFormSchema={productFormSchema}
+                                    mode="multi"
+                                    value={selectedProductIds}
+                                    onChange={handleProductsChange}
+                                    options={productOptions}
+                                    onSearch={setProductSearch}
+                                    onCreate={handleCreateProduct}
+                                    onRefresh={refetchProducts}
+                                    getRecordDisplay={getProductDisplay}
+                                    nestedFieldsConfig={nestedFieldsConfig}
+                                    disabled={isTerminal}
+                                    canCreate
+                                />
+                            </div>
                         </div>
+                    </div>
 
-                        {/* Metadata */}
-                        <div className="pt-4 border-t border-border">
-                            <div className="text-sm text-muted-foreground space-y-1">
-                                <p>Created: {new Date(opportunity.created_at).toLocaleDateString('pt-BR')}</p>
-                                <p>Updated: {new Date(opportunity.updated_at).toLocaleDateString('pt-BR')}</p>
+                    {/* Information */}
+                    <div className="bg-card rounded-xl border border-border p-6">
+                        <h2 className="text-lg font-semibold mb-4">Information</h2>
+
+                        <div className="space-y-4">
+                            {/* Responsible - placeholder for user dropdown */}
+                            <div>
+                                <label className="text-sm text-muted-foreground block mb-1">Responsible</label>
+                                <p className="font-medium py-2 text-muted-foreground italic">
+                                    {opportunity.assigned_to ? 'Assigned user' : 'No one assigned'}
+                                </p>
+                            </div>
+
+                            {/* Metadata */}
+                            <div className="pt-4 border-t border-border">
+                                <div className="text-sm text-muted-foreground space-y-1">
+                                    <p>Created: {new Date(opportunity.created_at).toLocaleDateString('pt-BR')}</p>
+                                    <p>Updated: {new Date(opportunity.updated_at).toLocaleDateString('pt-BR')}</p>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -268,6 +268,7 @@ export type Database = {
                     metadata: Json | null
                     net_price: number | null
                     office: Database["public"]["Enums"]["office"] | null
+                    type_of_sale: Database["public"]["Enums"]["type_of_sale"] | null
                     product_id: string | null
                     purchase_order: string | null
                     quote_number: string | null
@@ -293,6 +294,7 @@ export type Database = {
                     metadata?: Json | null
                     net_price?: number | null
                     office?: Database["public"]["Enums"]["office"] | null
+                    type_of_sale?: Database["public"]["Enums"]["type_of_sale"] | null
                     product_id?: string | null
                     purchase_order?: string | null
                     quote_number?: string | null
@@ -318,6 +320,7 @@ export type Database = {
                     metadata?: Json | null
                     net_price?: number | null
                     office?: Database["public"]["Enums"]["office"] | null
+                    type_of_sale?: Database["public"]["Enums"]["type_of_sale"] | null
                     product_id?: string | null
                     purchase_order?: string | null
                     quote_number?: string | null
@@ -642,6 +645,10 @@ export type Database = {
             | "documents"
             | "settings"
             | "users"
+            type_of_sale:
+            | "Direct Importation"
+            | "Nationalized"
+            | "Commissioned"
         }
         CompositeTypes: {
             [_ in never]: never

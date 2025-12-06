@@ -1,3 +1,5 @@
+import { ReactNode } from 'react'
+
 // Types for the RelationalField component system
 
 export interface FormField {
@@ -74,7 +76,7 @@ export interface RelationalFieldProps {
 export interface RelationalOption {
     id: string
     primaryText: string
-    secondaryText?: string
+    secondaryText?: string | ReactNode
     data?: Record<string, unknown>
 }
 

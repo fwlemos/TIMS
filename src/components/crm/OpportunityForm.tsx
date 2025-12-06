@@ -2,11 +2,12 @@ import { useState, useCallback, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, User, Package } from 'lucide-react'
+import { Loader2, User, Package, Building2 } from 'lucide-react'
 import { RelationalField, NestedFieldsConfig, FormField, RelationalOption } from '@/components/shared/RelationalField'
 import { useContacts } from '@/hooks/useContacts'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useProducts } from '@/hooks/useProducts'
+import { useUsers } from '@/hooks/useUsers'
 
 import type { InsertTables } from '@/lib/database.types'
 import type { OpportunityWithRelations } from '@/hooks/useOpportunities'
@@ -28,6 +29,7 @@ const LEAD_ORIGINS: { value: LeadOrigin; label: string }[] = [
 const opportunitySchema = z.object({
     title: z.string().optional(),
     lead_origin: z.enum(LEAD_ORIGIN_VALUES, { required_error: 'Lead origin is required' }),
+    assigned_to: z.string().optional(),
 })
 
 type OpportunityFormData = z.infer<typeof opportunitySchema>
@@ -88,6 +90,7 @@ const productFormSchema: FormField[] = [
         name: 'manufacturer_id',
         label: 'Manufacturer',
         type: 'relational',
+        required: true,
         relationalConfig: {
             entityType: 'manufacturer',
             entityLabel: 'Manufacturer',
@@ -103,6 +106,7 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
     const { companies, createCompany, refetch: refetchCompanies } = useCompanies()
     const { products, createProduct, refetch: refetchProducts } = useProducts()
     const { companies: manufacturers, createCompany: createManufacturer, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
+    const { users, currentUser, loading: usersLoading } = useUsers()
 
     // Selected IDs state
     const [selectedContactId, setSelectedContactId] = useState<string | null>(
@@ -132,8 +136,10 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
         defaultValues: {
             title: opportunity?.title || '',
             lead_origin: opportunity?.lead_origin || undefined,
+            assigned_to: opportunity?.assigned_to || currentUser?.id || undefined,
         },
     })
+
 
     const handleFormSubmit = async (data: OpportunityFormData) => {
         // Validate required fields not in the form schema
@@ -171,6 +177,7 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                 company_id: contact?.company_id || null,
                 product_id: selectedProductIds[0] || null, // Legacy field
                 lead_origin: data.lead_origin,
+                assigned_to: data.assigned_to || null,
                 // Store additional product IDs in metadata for the parent to handle
                 metadata: selectedProductIds.length > 1 ? { additional_product_ids: selectedProductIds.slice(1) } : undefined,
             })
@@ -184,21 +191,41 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
     const contactOptions = useMemo(() =>
         contacts
             .filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()))
-            .map(c => ({
-                id: c.id,
-                primaryText: c.name,
-                secondaryText: c.email || undefined,
-            })),
+            .map(c => {
+                // Type assertion for nested company data
+                const contactWithCompany = c as typeof c & { company?: { name: string } | null }
+                const companyName = contactWithCompany.company?.name
+                return {
+                    id: c.id,
+                    primaryText: c.name,
+                    secondaryText: (
+                        <div className="flex flex-col gap-0.5">
+                            {c.email && <span className="truncate">{c.email}</span>}
+                            {companyName && (
+                                <span className="flex items-center gap-1.5 opacity-90">
+                                    <Building2 className="w-3 h-3" />
+                                    <span className="truncate">{companyName}</span>
+                                </span>
+                            )}
+                        </div>
+                    ),
+                }
+            }),
         [contacts, contactSearch]
     )
 
     const productOptions = useMemo(() =>
         products
             .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
-            .map(p => ({
-                id: p.id,
-                primaryText: p.name,
-            })),
+            .map(p => {
+                // Type assertion for nested manufacturer data
+                const productWithManufacturer = p as typeof p & { manufacturer?: { name: string } | null }
+                return {
+                    id: p.id,
+                    primaryText: p.name,
+                    secondaryText: productWithManufacturer.manufacturer?.name || 'No Manufacturer',
+                }
+            }),
         [products, productSearch]
     )
 
@@ -225,12 +252,39 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
     // Get display functions
     const getContactDisplay = useCallback((id: string): RelationalOption | undefined => {
         const contact = contacts.find(c => c.id === id)
-        return contact ? { id: contact.id, primaryText: contact.name, secondaryText: contact.email || undefined } : undefined
+        if (!contact) return undefined
+
+        const contactWithCompany = contact as typeof contact & { company?: { name: string } | null }
+        const companyName = contactWithCompany.company?.name
+
+        return {
+            id: contact.id,
+            primaryText: contact.name,
+            secondaryText: (
+                <div className="flex flex-col gap-0.5">
+                    {contact.email && <span className="truncate">{contact.email}</span>}
+                    {companyName && (
+                        <span className="flex items-center gap-1.5 opacity-90">
+                            <Building2 className="w-3 h-3" />
+                            <span className="truncate">{companyName}</span>
+                        </span>
+                    )}
+                </div>
+            )
+        }
     }, [contacts])
 
     const getProductDisplay = useCallback((id: string): RelationalOption | undefined => {
         const product = products.find(p => p.id === id)
-        return product ? { id: product.id, primaryText: product.name } : undefined
+        if (!product) return undefined
+
+        const productWithManufacturer = product as typeof product & { manufacturer?: { name: string } | null }
+
+        return {
+            id: product.id,
+            primaryText: product.name,
+            secondaryText: productWithManufacturer.manufacturer?.name || 'No Manufacturer'
+        }
     }, [products])
 
     const getCompanyDisplay = useCallback((id: string): RelationalOption | undefined => {
@@ -322,6 +376,28 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                 />
                 {errors.title && (
                     <p className="text-destructive text-sm mt-1">{errors.title.message}</p>
+                )}
+            </div>
+
+            {/* Responsible */}
+            <div>
+                <label className="block text-sm font-medium mb-1.5">
+                    Responsible <span className="text-destructive">*</span>
+                </label>
+                <select
+                    {...register('assigned_to')}
+                    className="input"
+                    disabled={usersLoading}
+                >
+                    <option value="">Select responsible...</option>
+                    {users.map((user) => (
+                        <option key={user.id} value={user.id}>
+                            {user.name} {currentUser?.id === user.id ? '(You)' : ''}
+                        </option>
+                    ))}
+                </select>
+                {errors.assigned_to && (
+                    <p className="text-destructive text-sm mt-1">{errors.assigned_to.message}</p>
                 )}
             </div>
 

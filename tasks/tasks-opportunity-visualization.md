@@ -81,27 +81,27 @@
 
 ---
 
-- [ ] 4.0 Stage Fields Column Layout
-  - [ ] 4.1 Create `StageColumns.tsx` component with horizontal column layout
-  - [ ] 4.2 Each column labeled with stage name and color indicator
-  - [ ] 4.3 Current stage column visually highlighted (border/elevation/background)
-  - [ ] 4.4 Implement Lead Backlog column with: Contact, Product, Lead Origin fields
-  - [ ] 4.5 Implement Qualification column with placeholder "Fields to be defined"
-  - [ ] 4.6 Implement Quotation column with placeholder "Fields to be defined"
-  - [ ] 4.7 Implement Closing column with placeholder "Fields to be defined"
-  - [ ] 4.8 Implement Won column with: Purchase Order upload OR Order Agreement Description
-  - [ ] 4.9 Enable editing for current and completed stage fields
-  - [ ] 4.10 Disable/grey out future stage fields
-  - [ ] 4.11 Mark required fields with asterisk
-  - [ ] 4.12 Implement stage advancement via breadcrumb click
-  - [ ] 4.13 Validate required fields before stage advancement
-  - [ ] 4.14 Show error message listing missing required fields if validation fails
-  - [ ] 4.15 Prevent skipping stages (can only advance one at a time)
-  - [ ] 4.16 Allow moving backward to previous stages
+- [x] 4.0 Stage Fields Column Layout
+  - [x] 4.1 Create `StageColumns.tsx` component with horizontal column layout
+  - [x] 4.2 Each column labeled with stage name and color indicator
+  - [x] 4.3 Current stage column visually highlighted (border/elevation/background)
+  - [x] 4.4 Implement Lead Backlog column with: Contact, Product, Lead Origin fields
+  - [x] 4.5 Implement Qualification column with placeholder "Fields to be defined"
+  - [x] 4.6 Implement Quotation column with placeholder "Fields to be defined"
+  - [x] 4.7 Implement Closing column with placeholder "Fields to be defined"
+  - [x] 4.8 Implement Won column with: Purchase Order upload OR Order Agreement Description
+  - [x] 4.9 Enable editing for current and completed stage fields
+  - [x] 4.10 Disable/grey out future stage fields
+  - [x] 4.11 Mark required fields with asterisk
+  - [x] 4.12 Implement stage advancement via breadcrumb click
+  - [x] 4.13 Validate required fields before stage advancement
+  - [x] 4.14 Show error message listing missing required fields if validation fails
+  - [x] 4.15 Prevent skipping stages (can only advance one at a time)
+  - [x] 4.16 Allow moving backward to previous stages
 
 ---
 
-- [ ] 5.0 Related Entities Panel
+- [ ] 5.0 Related Entities Panel (User preferred original implementation - reverted)
   - [ ] 5.1 Create `RelatedEntitiesPanel.tsx` as right sidebar component
   - [ ] 5.2 Display Contact section: name, email, phone + Edit/Remove buttons
   - [ ] 5.3 Display Company section: name, address, phone + Edit/Remove buttons

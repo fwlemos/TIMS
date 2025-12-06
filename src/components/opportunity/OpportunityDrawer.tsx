@@ -3,6 +3,7 @@ import { X, Calendar, Building2, User, Package, MapPin, Tag, ExternalLink, XCirc
 import { clsx } from 'clsx'
 import { Link } from 'react-router-dom'
 import type { OpportunityWithRelations } from '@/hooks/useOpportunities'
+import { useUsers } from '@/hooks/useUsers'
 
 interface OpportunityDrawerProps {
     opportunity: OpportunityWithRelations | null
@@ -24,6 +25,7 @@ const LEAD_ORIGIN_LABELS: Record<string, string> = {
 
 export function OpportunityDrawer({ opportunity, isOpen, onClose, onMarkAsLost }: OpportunityDrawerProps) {
     const drawerRef = useRef<HTMLDivElement>(null)
+    const { users } = useUsers()
 
     // Close on Escape key
     useEffect(() => {
@@ -103,6 +105,18 @@ export function OpportunityDrawer({ opportunity, isOpen, onClose, onMarkAsLost }
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                                 <Calendar className="w-3 h-3" />
                                 {getDaysOpen()} days open
+                            </span>
+                        </div>
+                    </div>
+                    {/* Responsible User Badge */}
+                    <div className="mr-4 flex flex-col items-end hidden sm:flex">
+                        <span className="text-xs text-muted-foreground">Responsible</span>
+                        <div className="flex items-center gap-1.5 text-sm font-medium">
+                            <User className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span>
+                                {opportunity.assigned_to
+                                    ? (users.find(u => u.id === opportunity.assigned_to)?.name || 'Assigned')
+                                    : 'Unassigned'}
                             </span>
                         </div>
                     </div>

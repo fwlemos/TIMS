@@ -30,9 +30,9 @@ export function RelationalSelectedCard({
 
             {/* Content */}
             <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{record.primaryText}</p>
+                <div className="text-sm font-medium truncate">{record.primaryText}</div>
                 {record.secondaryText && (
-                    <p className="text-xs text-muted-foreground truncate">{record.secondaryText}</p>
+                    <div className="text-xs text-muted-foreground">{record.secondaryText}</div>
                 )}
             </div>
 

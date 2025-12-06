@@ -493,7 +493,9 @@ export default function Database() {
             {/* FAB */}
             <FAB
                 onClick={handleAdd}
-                label={t(`database.add${activeTab.charAt(0).toUpperCase() + activeTab.slice(1, -1)}`)}
+                label={t(`database.add${activeTab === 'companies' ? 'Company' :
+                    activeTab === 'contacts' ? 'Contact' :
+                        activeTab === 'products' ? 'Product' : 'Manufacturer'}`)}
             />
 
             {/* Modal for Add/Edit */}
