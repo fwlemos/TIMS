@@ -5,7 +5,8 @@ import type { Opportunity, PipelineStage, InsertTables, UpdateTables } from '@/l
 export interface OpportunityWithRelations extends Opportunity {
     contact?: { id: string; name: string } | null
     company?: { id: string; name: string } | null
-    product?: { id: string; name: string } | null
+    product?: { id: string; name: string } | null  // Legacy single product
+    products?: Array<{ id: string; name: string }>  // New: multiple products
     stage?: PipelineStage | null
 }
 
@@ -67,11 +68,17 @@ export function useOpportunities() {
         const leadBacklogStage = stages.find(s => s.order_index === 0)
         const stageId = opportunity.stage_id || leadBacklogStage?.id
 
+        // Extract additional product IDs from metadata (if multi-product creation)
+        const metadata = opportunity.metadata as { additional_product_ids?: string[] } | null | undefined
+        const additionalProductIds = metadata?.additional_product_ids || []
+
         const { data, error } = await supabase
             .from('opportunities')
             .insert({
                 ...opportunity,
                 stage_id: stageId,
+                // Clear the additional_product_ids from metadata since we'll handle it separately
+                metadata: metadata ? { ...metadata, additional_product_ids: undefined } : undefined,
             })
             .select(`
                 *,
@@ -83,6 +90,20 @@ export function useOpportunities() {
             .single()
 
         if (error) throw error
+
+        // Insert all products into the junction table
+        const allProductIds = [opportunity.product_id, ...additionalProductIds].filter(Boolean) as string[]
+        if (allProductIds.length > 0) {
+            const productInserts = allProductIds.map(productId => ({
+                opportunity_id: data.id,
+                product_id: productId,
+            }))
+
+            await supabase
+                .from('opportunity_products')
+                .insert(productInserts)
+                .throwOnError()
+        }
 
         // Optimistic update: Add new opportunity to state
         setOpportunities(prev => [data, ...prev])

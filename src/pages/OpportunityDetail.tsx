@@ -1,9 +1,13 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, XCircle, Loader2, User, Check } from 'lucide-react'
-import { useState, useCallback } from 'react'
+import { ArrowLeft, Calendar, XCircle, Loader2, User, Building2, Package, Check } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
 import { useOpportunityDetail } from '@/hooks/useOpportunityDetail'
 import { StageBreadcrumb } from '@/components/opportunity/StageBreadcrumb'
 import { LostReasonModal } from '@/components/crm/LostReasonModal'
+import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from '@/components/shared/RelationalField'
+import { useContacts } from '@/hooks/useContacts'
+import { useCompanies } from '@/hooks/useCompanies'
+import { useProducts } from '@/hooks/useProducts'
 
 const LEAD_ORIGIN_OPTIONS = [
     { value: 'website', label: 'Website' },
@@ -21,10 +25,86 @@ const OFFICE_OPTIONS = [
     { value: 'usa', label: 'USA' },
 ]
 
+// Form schemas for nested entity creation (same as OpportunityForm)
+const manufacturerFormSchema: FormField[] = [
+    { name: 'name', label: 'Manufacturer Name', type: 'text', required: true, placeholder: 'Enter manufacturer name...' },
+    { name: 'tax_id', label: 'Tax ID (CNPJ/EIN)', type: 'text', placeholder: 'Enter Tax ID' },
+    { name: 'address', label: 'Address', type: 'text', placeholder: 'Enter full address' },
+    { name: 'phone', label: 'Phone', type: 'tel', placeholder: '(00) 00000-0000' },
+    { name: 'website', label: 'Website', type: 'url', placeholder: 'https://example.com' },
+]
+
+const companyFormSchema: FormField[] = [
+    { name: 'name', label: 'Company Name', type: 'text', required: true, placeholder: 'Enter company name...' },
+    { name: 'tax_id', label: 'Tax ID (CNPJ/EIN)', type: 'text', placeholder: 'Enter Tax ID' },
+    { name: 'address', label: 'Address', type: 'text', placeholder: 'Enter full address' },
+    { name: 'phone', label: 'Phone', type: 'tel', placeholder: '(00) 00000-0000' },
+    { name: 'website', label: 'Website', type: 'url', placeholder: 'https://example.com' },
+]
+
+const contactFormSchema: FormField[] = [
+    { name: 'name', label: 'Contact Name', type: 'text', required: true, placeholder: 'Enter name...' },
+    { name: 'email', label: 'Email', type: 'email', placeholder: 'email@example.com' },
+    { name: 'phone', label: 'Phone', type: 'tel', placeholder: '(00) 00000-0000' },
+    {
+        name: 'company_id',
+        label: 'Company',
+        type: 'relational',
+        relationalConfig: {
+            entityType: 'company',
+            entityLabel: 'Company',
+            displayFields: ['name'],
+            searchFields: ['name'],
+            nestedFormSchema: companyFormSchema,
+        }
+    },
+]
+
+const productFormSchema: FormField[] = [
+    { name: 'name', label: 'Product Name', type: 'text', required: true, placeholder: 'Enter product name...' },
+    { name: 'technical_description', label: 'Technical Description', type: 'textarea', placeholder: 'Enter technical details...' },
+    { name: 'ncm', label: 'NCM Code', type: 'text', placeholder: '0000.00.00' },
+    {
+        name: 'manufacturer_id',
+        label: 'Manufacturer',
+        type: 'relational',
+        relationalConfig: {
+            entityType: 'manufacturer',
+            entityLabel: 'Manufacturer',
+            displayFields: ['name'],
+            searchFields: ['name'],
+            nestedFormSchema: manufacturerFormSchema,
+        }
+    },
+]
+
 export default function OpportunityDetail() {
     const { opportunityId } = useParams<{ opportunityId: string }>()
     const navigate = useNavigate()
-    const { opportunity, stages, loading, error, updateOpportunity, updateStage } = useOpportunityDetail(opportunityId)
+    const {
+        opportunity,
+        stages,
+        loading,
+        error,
+        updateOpportunity,
+        updateStage,
+        updateContact,
+        updateCompany,
+        addProduct,
+        removeProduct,
+    } = useOpportunityDetail(opportunityId)
+
+    // Entity hooks for RelationalFields
+    const { contacts, createContact, refetch: refetchContacts } = useContacts()
+    const { companies, createCompany, refetch: refetchCompanies } = useCompanies()
+    const { products, createProduct, refetch: refetchProducts } = useProducts()
+    const { companies: manufacturers, createCompany: createManufacturer, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
+
+    // Search states
+    const [contactSearch, setContactSearch] = useState('')
+    const [companySearch, setCompanySearch] = useState('')
+    const [productSearch, setProductSearch] = useState('')
+    const [manufacturerSearch, setManufacturerSearch] = useState('')
 
     const [showLostModal, setShowLostModal] = useState(false)
     const [savingField, setSavingField] = useState<string | null>(null)
@@ -55,6 +135,64 @@ export default function OpportunityDetail() {
         }
     }, [opportunity, updateOpportunity])
 
+    // Entity update handlers with auto-save
+    const handleContactChange = useCallback(async (value: string | string[] | null) => {
+        const contactId = Array.isArray(value) ? value[0] : value
+        setSavingField('contact')
+        try {
+            await updateContact(contactId || null)
+            setSavedField('contact')
+            setTimeout(() => setSavedField(null), 1500)
+        } catch (err) {
+            console.error('Error updating contact:', err)
+        } finally {
+            setSavingField(null)
+        }
+    }, [updateContact])
+
+    const handleCompanyChange = useCallback(async (value: string | string[] | null) => {
+        const companyId = Array.isArray(value) ? value[0] : value
+        setSavingField('company')
+        try {
+            await updateCompany(companyId || null)
+            setSavedField('company')
+            setTimeout(() => setSavedField(null), 1500)
+        } catch (err) {
+            console.error('Error updating company:', err)
+        } finally {
+            setSavingField(null)
+        }
+    }, [updateCompany])
+
+    const handleProductsChange = useCallback(async (value: string | string[] | null) => {
+        if (!opportunity) return
+
+        const newProductIds = Array.isArray(value) ? value : (value ? [value] : [])
+        const currentProductIds = opportunity.products?.map(p => p.id) || []
+
+        setSavingField('products')
+        try {
+            // Find products to add
+            for (const id of newProductIds) {
+                if (!currentProductIds.includes(id)) {
+                    await addProduct(id)
+                }
+            }
+            // Find products to remove
+            for (const id of currentProductIds) {
+                if (!newProductIds.includes(id)) {
+                    await removeProduct(id)
+                }
+            }
+            setSavedField('products')
+            setTimeout(() => setSavedField(null), 1500)
+        } catch (err) {
+            console.error('Error updating products:', err)
+        } finally {
+            setSavingField(null)
+        }
+    }, [opportunity, addProduct, removeProduct])
+
     const handleMarkAsLost = async (reason: string) => {
         const lostStage = stages.find(s => s.name.toLowerCase().includes('lost'))
         if (lostStage) {
@@ -69,6 +207,122 @@ export default function OpportunityDetail() {
     const handleStageChange = async (newStageId: string) => {
         await updateStage(newStageId)
     }
+
+    // Convert entities to RelationalOptions
+    const contactOptions = useMemo(() =>
+        contacts
+            .filter(c => c.name.toLowerCase().includes(contactSearch.toLowerCase()))
+            .map(c => ({
+                id: c.id,
+                primaryText: c.name,
+                secondaryText: c.email || undefined,
+            })),
+        [contacts, contactSearch]
+    )
+
+    const companyOptions = useMemo(() =>
+        companies
+            .filter(c => c.name.toLowerCase().includes(companySearch.toLowerCase()))
+            .map(c => ({
+                id: c.id,
+                primaryText: c.name,
+            })),
+        [companies, companySearch]
+    )
+
+    const productOptions = useMemo(() =>
+        products
+            .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
+            .map(p => ({
+                id: p.id,
+                primaryText: p.name,
+            })),
+        [products, productSearch]
+    )
+
+    const manufacturerOptions = useMemo(() =>
+        manufacturers
+            .filter(m => m.name.toLowerCase().includes(manufacturerSearch.toLowerCase()))
+            .map(m => ({
+                id: m.id,
+                primaryText: m.name,
+            })),
+        [manufacturers, manufacturerSearch]
+    )
+
+    // Get display functions
+    const getContactDisplay = useCallback((id: string): RelationalOption | undefined => {
+        const contact = contacts.find(c => c.id === id)
+        return contact ? { id: contact.id, primaryText: contact.name, secondaryText: contact.email || undefined } : undefined
+    }, [contacts])
+
+    const getCompanyDisplay = useCallback((id: string): RelationalOption | undefined => {
+        const company = companies.find(c => c.id === id)
+        return company ? { id: company.id, primaryText: company.name } : undefined
+    }, [companies])
+
+    const getProductDisplay = useCallback((id: string): RelationalOption | undefined => {
+        const product = products.find(p => p.id === id)
+        return product ? { id: product.id, primaryText: product.name } : undefined
+    }, [products])
+
+    const getManufacturerDisplay = useCallback((id: string): RelationalOption | undefined => {
+        const manufacturer = manufacturers.find(m => m.id === id)
+        return manufacturer ? { id: manufacturer.id, primaryText: manufacturer.name } : undefined
+    }, [manufacturers])
+
+    // Create handlers
+    const handleCreateContact = useCallback(async (data: Record<string, unknown>): Promise<string | null> => {
+        const result = await createContact({
+            name: data.name as string,
+            email: (data.email as string) || undefined,
+            phone: (data.phone as string) || undefined,
+            company_id: (data.company_id as string) || null,
+        })
+        return result?.id || null
+    }, [createContact])
+
+    const handleCreateCompany = useCallback(async (data: Record<string, unknown>): Promise<string | null> => {
+        const result = await createCompany({ name: data.name as string })
+        return result?.id || null
+    }, [createCompany])
+
+    const handleCreateProduct = useCallback(async (data: Record<string, unknown>): Promise<string | null> => {
+        const result = await createProduct({
+            name: data.name as string,
+            manufacturer_id: (data.manufacturer_id as string) || null,
+        })
+        return result?.id || null
+    }, [createProduct])
+
+    const handleCreateManufacturer = useCallback(async (data: Record<string, unknown>): Promise<string | null> => {
+        const result = await createManufacturer({
+            name: data.name as string,
+            type: 'manufacturer',
+        })
+        return result?.id || null
+    }, [createManufacturer])
+
+    // Nested fields configuration
+    const nestedFieldsConfig: NestedFieldsConfig = useMemo(() => ({
+        company: {
+            options: companyOptions,
+            onSearch: setCompanySearch,
+            onCreate: handleCreateCompany,
+            onRefresh: refetchCompanies,
+            getRecordDisplay: getCompanyDisplay,
+        },
+        manufacturer: {
+            options: manufacturerOptions,
+            onSearch: setManufacturerSearch,
+            onCreate: handleCreateManufacturer,
+            onRefresh: refetchManufacturers,
+            getRecordDisplay: getManufacturerDisplay,
+        },
+    }), [
+        companyOptions, handleCreateCompany, refetchCompanies, getCompanyDisplay,
+        manufacturerOptions, handleCreateManufacturer, refetchManufacturers, getManufacturerDisplay
+    ])
 
     // Loading state
     if (loading) {
@@ -97,6 +351,9 @@ export default function OpportunityDetail() {
     const isLost = opportunity.stage?.name.toLowerCase().includes('lost')
     const isWon = opportunity.stage?.name.toLowerCase().includes('won')
     const isTerminal = isLost || isWon
+
+    // Get selected product IDs
+    const selectedProductIds = opportunity.products?.map(p => p.id) || []
 
     // Helper to show saving/saved indicator
     const FieldIndicator = ({ field }: { field: string }) => {
@@ -201,149 +458,226 @@ export default function OpportunityDetail() {
             {/* Main Content Area */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
                 {/* Left column - Editable Fields */}
-                <div className="lg:col-span-2 bg-card rounded-xl border border-border p-6">
-                    <h2 className="text-lg font-semibold mb-4">Opportunity Details</h2>
+                <div className="lg:col-span-2 space-y-6">
+                    {/* Related Entities - Editable Cards */}
+                    <div className="bg-card rounded-xl border border-border p-6">
+                        <h2 className="text-lg font-semibold mb-4">Related Entities</h2>
 
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                        {/* Lead Origin */}
-                        <div>
-                            <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                Lead Origin
-                                <FieldIndicator field="lead_origin" />
-                            </label>
-                            <select
-                                defaultValue={opportunity.lead_origin || ''}
-                                onChange={(e) => handleFieldChange('lead_origin', e.target.value || null)}
-                                className="input w-full"
-                                disabled={isTerminal}
-                            >
-                                <option value="">Select...</option>
-                                {LEAD_ORIGIN_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                            </select>
+                        <div className="space-y-4">
+                            {/* Contact - Editable */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                    <User className="w-4 h-4 text-muted-foreground" />
+                                    Contact
+                                    <FieldIndicator field="contact" />
+                                </label>
+                                <RelationalField
+                                    entityType="contact"
+                                    entityLabel="Contact"
+                                    displayFields={['name', 'email']}
+                                    searchFields={['name', 'email', 'phone']}
+                                    nestedFormSchema={contactFormSchema}
+                                    value={opportunity.contact_id}
+                                    onChange={handleContactChange}
+                                    options={contactOptions}
+                                    onSearch={setContactSearch}
+                                    onCreate={handleCreateContact}
+                                    onRefresh={refetchContacts}
+                                    getRecordDisplay={getContactDisplay}
+                                    nestedFieldsConfig={nestedFieldsConfig}
+                                    disabled={isTerminal}
+                                    canCreate
+                                />
+                            </div>
+
+                            {/* Company - Editable */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                    <Building2 className="w-4 h-4 text-muted-foreground" />
+                                    Company
+                                    <FieldIndicator field="company" />
+                                </label>
+                                <RelationalField
+                                    entityType="company"
+                                    entityLabel="Company"
+                                    displayFields={['name']}
+                                    searchFields={['name']}
+                                    nestedFormSchema={companyFormSchema}
+                                    value={opportunity.company_id}
+                                    onChange={handleCompanyChange}
+                                    options={companyOptions}
+                                    onSearch={setCompanySearch}
+                                    onCreate={handleCreateCompany}
+                                    onRefresh={refetchCompanies}
+                                    getRecordDisplay={getCompanyDisplay}
+                                    disabled={isTerminal}
+                                    canCreate
+                                />
+                            </div>
+
+                            {/* Products - Multi-select */}
+                            <div>
+                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                    <Package className="w-4 h-4 text-muted-foreground" />
+                                    Products
+                                    <FieldIndicator field="products" />
+                                </label>
+                                <RelationalField
+                                    entityType="product"
+                                    entityLabel="Product"
+                                    displayFields={['name']}
+                                    searchFields={['name']}
+                                    nestedFormSchema={productFormSchema}
+                                    mode="multi"
+                                    value={selectedProductIds}
+                                    onChange={handleProductsChange}
+                                    options={productOptions}
+                                    onSearch={setProductSearch}
+                                    onCreate={handleCreateProduct}
+                                    onRefresh={refetchProducts}
+                                    getRecordDisplay={getProductDisplay}
+                                    nestedFieldsConfig={nestedFieldsConfig}
+                                    disabled={isTerminal}
+                                    canCreate
+                                />
+                            </div>
                         </div>
+                    </div>
 
-                        {/* Office */}
-                        <div>
-                            <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                Office
-                                <FieldIndicator field="office" />
-                            </label>
-                            <select
-                                defaultValue={opportunity.office || ''}
-                                onChange={(e) => handleFieldChange('office', e.target.value || null)}
-                                className="input w-full"
-                                disabled={isTerminal}
-                            >
-                                <option value="">Select...</option>
-                                {OFFICE_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                            </select>
+                    {/* Opportunity Details */}
+                    <div className="bg-card rounded-xl border border-border p-6">
+                        <h2 className="text-lg font-semibold mb-4">Opportunity Details</h2>
+
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                            {/* Lead Origin */}
+                            <div>
+                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
+                                    Lead Origin
+                                    <FieldIndicator field="lead_origin" />
+                                </label>
+                                <select
+                                    defaultValue={opportunity.lead_origin || ''}
+                                    onChange={(e) => handleFieldChange('lead_origin', e.target.value || null)}
+                                    className="input w-full"
+                                    disabled={isTerminal}
+                                >
+                                    <option value="">Select...</option>
+                                    {LEAD_ORIGIN_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Office */}
+                            <div>
+                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
+                                    Office
+                                    <FieldIndicator field="office" />
+                                </label>
+                                <select
+                                    defaultValue={opportunity.office || ''}
+                                    onChange={(e) => handleFieldChange('office', e.target.value || null)}
+                                    className="input w-full"
+                                    disabled={isTerminal}
+                                >
+                                    <option value="">Select...</option>
+                                    {OFFICE_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Quote Number */}
+                            <div>
+                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
+                                    Quote Number
+                                    <FieldIndicator field="quote_number" />
+                                </label>
+                                <input
+                                    type="text"
+                                    defaultValue={opportunity.quote_number || ''}
+                                    onBlur={(e) => {
+                                        const newValue = e.target.value || null
+                                        if (newValue !== opportunity.quote_number) {
+                                            handleFieldChange('quote_number', newValue)
+                                        }
+                                    }}
+                                    className="input w-full"
+                                    placeholder="Enter quote number"
+                                    disabled={isTerminal}
+                                />
+                            </div>
+
+                            {/* Currency */}
+                            <div>
+                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
+                                    Currency
+                                    <FieldIndicator field="currency" />
+                                </label>
+                                <select
+                                    defaultValue={opportunity.currency || 'BRL'}
+                                    onChange={(e) => handleFieldChange('currency', e.target.value)}
+                                    className="input w-full"
+                                    disabled={isTerminal}
+                                >
+                                    <option value="BRL">BRL</option>
+                                    <option value="USD">USD</option>
+                                    <option value="EUR">EUR</option>
+                                </select>
+                            </div>
+
+                            {/* Net Price */}
+                            <div>
+                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
+                                    Net Price
+                                    <FieldIndicator field="net_price" />
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    defaultValue={opportunity.net_price || ''}
+                                    onBlur={(e) => {
+                                        const newValue = e.target.value ? parseFloat(e.target.value) : null
+                                        if (newValue !== opportunity.net_price) {
+                                            handleFieldChange('net_price', newValue)
+                                        }
+                                    }}
+                                    className="input w-full"
+                                    placeholder="0.00"
+                                    disabled={isTerminal}
+                                />
+                            </div>
+
+                            {/* Sales Price */}
+                            <div>
+                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
+                                    Sales Price
+                                    <FieldIndicator field="sales_price" />
+                                </label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    defaultValue={opportunity.sales_price || ''}
+                                    onBlur={(e) => {
+                                        const newValue = e.target.value ? parseFloat(e.target.value) : null
+                                        if (newValue !== opportunity.sales_price) {
+                                            handleFieldChange('sales_price', newValue)
+                                        }
+                                    }}
+                                    className="input w-full"
+                                    placeholder="0.00"
+                                    disabled={isTerminal}
+                                />
+                            </div>
                         </div>
+                    </div>
+                </div>
 
-                        {/* Quote Number */}
-                        <div>
-                            <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                Quote Number
-                                <FieldIndicator field="quote_number" />
-                            </label>
-                            <input
-                                type="text"
-                                defaultValue={opportunity.quote_number || ''}
-                                onBlur={(e) => {
-                                    const newValue = e.target.value || null
-                                    if (newValue !== opportunity.quote_number) {
-                                        handleFieldChange('quote_number', newValue)
-                                    }
-                                }}
-                                className="input w-full"
-                                placeholder="Enter quote number"
-                                disabled={isTerminal}
-                            />
-                        </div>
+                {/* Right column - Info sidebar */}
+                <div className="bg-card rounded-xl border border-border p-6">
+                    <h2 className="text-lg font-semibold mb-4">Information</h2>
 
-                        {/* Currency */}
-                        <div>
-                            <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                Currency
-                                <FieldIndicator field="currency" />
-                            </label>
-                            <select
-                                defaultValue={opportunity.currency || 'BRL'}
-                                onChange={(e) => handleFieldChange('currency', e.target.value)}
-                                className="input w-full"
-                                disabled={isTerminal}
-                            >
-                                <option value="BRL">BRL</option>
-                                <option value="USD">USD</option>
-                                <option value="EUR">EUR</option>
-                            </select>
-                        </div>
-
-                        {/* Net Price */}
-                        <div>
-                            <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                Net Price
-                                <FieldIndicator field="net_price" />
-                            </label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                defaultValue={opportunity.net_price || ''}
-                                onBlur={(e) => {
-                                    const newValue = e.target.value ? parseFloat(e.target.value) : null
-                                    if (newValue !== opportunity.net_price) {
-                                        handleFieldChange('net_price', newValue)
-                                    }
-                                }}
-                                className="input w-full"
-                                placeholder="0.00"
-                                disabled={isTerminal}
-                            />
-                        </div>
-
-                        {/* Sales Price */}
-                        <div>
-                            <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                Sales Price
-                                <FieldIndicator field="sales_price" />
-                            </label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                defaultValue={opportunity.sales_price || ''}
-                                onBlur={(e) => {
-                                    const newValue = e.target.value ? parseFloat(e.target.value) : null
-                                    if (newValue !== opportunity.sales_price) {
-                                        handleFieldChange('sales_price', newValue)
-                                    }
-                                }}
-                                className="input w-full"
-                                placeholder="0.00"
-                                disabled={isTerminal}
-                            />
-                        </div>
-
-                        {/* Contact (read-only - change via Related Entities) */}
-                        <div>
-                            <label className="text-sm text-muted-foreground block mb-1">Contact</label>
-                            <p className="font-medium py-2">{opportunity.contact?.name || '-'}</p>
-                        </div>
-
-                        {/* Company (read-only - change via Related Entities) */}
-                        <div>
-                            <label className="text-sm text-muted-foreground block mb-1">Company</label>
-                            <p className="font-medium py-2">{opportunity.company?.name || '-'}</p>
-                        </div>
-
-                        {/* Product (read-only - change via Related Entities) */}
-                        <div>
-                            <label className="text-sm text-muted-foreground block mb-1">Product</label>
-                            <p className="font-medium py-2">{opportunity.product?.name || '-'}</p>
-                        </div>
-
+                    <div className="space-y-4">
                         {/* Responsible - placeholder for user dropdown */}
                         <div>
                             <label className="text-sm text-muted-foreground block mb-1">Responsible</label>
@@ -351,55 +685,13 @@ export default function OpportunityDetail() {
                                 {opportunity.assigned_to ? 'Assigned user' : 'No one assigned'}
                             </p>
                         </div>
-                    </div>
-                </div>
 
-                {/* Right column - Related entities */}
-                <div className="bg-card rounded-xl border border-border p-6">
-                    <h2 className="text-lg font-semibold mb-4">Related Entities</h2>
-
-                    {/* Contact */}
-                    {opportunity.contact && (
-                        <div className="mb-4 p-3 bg-muted/30 rounded-lg">
-                            <h3 className="text-sm font-medium mb-1">Contact</h3>
-                            <p className="font-medium">{opportunity.contact.name}</p>
-                            {opportunity.contact.email && (
-                                <p className="text-sm text-muted-foreground">{opportunity.contact.email}</p>
-                            )}
-                            {opportunity.contact.phone && (
-                                <p className="text-sm text-muted-foreground">{opportunity.contact.phone}</p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Company */}
-                    {opportunity.company && (
-                        <div className="mb-4 p-3 bg-muted/30 rounded-lg">
-                            <h3 className="text-sm font-medium mb-1">Company</h3>
-                            <p className="font-medium">{opportunity.company.name}</p>
-                            {opportunity.company.address && (
-                                <p className="text-sm text-muted-foreground">{opportunity.company.address}</p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Product */}
-                    {opportunity.product && (
-                        <div className="mb-4 p-3 bg-muted/30 rounded-lg">
-                            <h3 className="text-sm font-medium mb-1">Product</h3>
-                            <p className="font-medium">{opportunity.product.name}</p>
-                            {opportunity.product.ncm && (
-                                <p className="text-sm text-muted-foreground">NCM: {opportunity.product.ncm}</p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Metadata */}
-                    <div className="mt-6 pt-4 border-t border-border">
-                        <h3 className="text-sm font-medium mb-2">Information</h3>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                            <p>Created: {new Date(opportunity.created_at).toLocaleDateString('pt-BR')}</p>
-                            <p>Updated: {new Date(opportunity.updated_at).toLocaleDateString('pt-BR')}</p>
+                        {/* Metadata */}
+                        <div className="pt-4 border-t border-border">
+                            <div className="text-sm text-muted-foreground space-y-1">
+                                <p>Created: {new Date(opportunity.created_at).toLocaleDateString('pt-BR')}</p>
+                                <p>Updated: {new Date(opportunity.updated_at).toLocaleDateString('pt-BR')}</p>
+                            </div>
                         </div>
                     </div>
                 </div>

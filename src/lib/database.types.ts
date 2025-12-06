@@ -404,6 +404,48 @@ export type Database = {
                     }
                 ]
             }
+            opportunity_products: {
+                Row: {
+                    id: string
+                    opportunity_id: string
+                    product_id: string
+                    quantity: number | null
+                    notes: string | null
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    opportunity_id: string
+                    product_id: string
+                    quantity?: number | null
+                    notes?: string | null
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    opportunity_id?: string
+                    product_id?: string
+                    quantity?: number | null
+                    notes?: string | null
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "opportunity_products_opportunity_id_fkey"
+                        columns: ["opportunity_id"]
+                        isOneToOne: false
+                        referencedRelation: "opportunities"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "opportunity_products_product_id_fkey"
+                        columns: ["product_id"]
+                        isOneToOne: false
+                        referencedRelation: "products"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
             pipeline_stages: {
                 Row: {
                     color: string | null
@@ -637,3 +679,4 @@ export type ResourceType = Enums<"resource_type">
 export type LostReason = Tables<"lost_reasons">
 export type OpportunityActivity = Tables<"opportunity_activities">
 export type ActivityType = OpportunityActivity['activity_type']
+export type OpportunityProduct = Tables<"opportunity_products">

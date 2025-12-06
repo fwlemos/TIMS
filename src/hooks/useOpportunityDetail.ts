@@ -15,12 +15,20 @@ export interface OpportunityDetailWithRelations extends Opportunity {
         address?: string | null
         phone?: string | null
     } | null
+    // Legacy single product (deprecated, kept for backward compatibility)
     product?: {
         id: string
         name: string
         ncm?: string | null
         manufacturer_id?: string | null
     } | null
+    // New: multiple products via junction table
+    products?: Array<{
+        id: string
+        name: string
+        ncm?: string | null
+        manufacturer_id?: string | null
+    }>
     stage?: PipelineStage | null
 }
 
@@ -53,7 +61,8 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
         setLoading(true)
         setError(null)
 
-        const [stagesData, opportunityResult] = await Promise.all([
+        // Fetch stages, opportunity with relations, and products from junction table
+        const [stagesData, opportunityResult, productsResult] = await Promise.all([
             fetchStages(),
             supabase
                 .from('opportunities')
@@ -66,7 +75,14 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
                 `)
                 .eq('id', opportunityId)
                 .is('deleted_at', null)
-                .single()
+                .single(),
+            // Fetch products via junction table
+            supabase
+                .from('opportunity_products')
+                .select(`
+                    product:products(id, name, ncm, manufacturer_id)
+                `)
+                .eq('opportunity_id', opportunityId)
         ])
 
         setStages(stagesData)
@@ -75,7 +91,15 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
             setError(opportunityResult.error.message)
             setOpportunity(null)
         } else {
-            setOpportunity(opportunityResult.data)
+            // Extract products from junction table results
+            const products = productsResult.data
+                ?.map(row => row.product)
+                .filter((p): p is NonNullable<typeof p> => p !== null) || []
+
+            setOpportunity({
+                ...opportunityResult.data,
+                products,
+            })
         }
         setLoading(false)
     }, [opportunityId, fetchStages])
@@ -134,6 +158,155 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
         }
     }
 
+    // Update contact with optimistic update (no full refetch)
+    const updateContact = async (contactId: string | null) => {
+        if (!opportunityId || !opportunity) return
+
+        // Optimistic update first
+        if (contactId === null) {
+            // Removing contact
+            setOpportunity(prev => prev ? { ...prev, contact_id: null, contact: null } : prev)
+        } else {
+            // Fetch the contact data for optimistic update
+            const { data: contactData } = await supabase
+                .from('contacts')
+                .select('id, name, email, phone')
+                .eq('id', contactId)
+                .single()
+
+            setOpportunity(prev => prev ? {
+                ...prev,
+                contact_id: contactId,
+                contact: contactData || null
+            } : prev)
+        }
+
+        // Then persist to database
+        const { error } = await supabase
+            .from('opportunities')
+            .update({
+                contact_id: contactId,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', opportunityId)
+
+        if (error) {
+            console.error('Error updating contact:', error)
+            // Revert on error by refetching
+            fetchOpportunity()
+            throw error
+        }
+    }
+
+    // Update company with optimistic update (no full refetch)
+    const updateCompany = async (companyId: string | null) => {
+        if (!opportunityId || !opportunity) return
+
+        // Optimistic update first
+        if (companyId === null) {
+            // Removing company
+            setOpportunity(prev => prev ? { ...prev, company_id: null, company: null } : prev)
+        } else {
+            // Fetch the company data for optimistic update
+            const { data: companyData } = await supabase
+                .from('companies')
+                .select('id, name, address, phone')
+                .eq('id', companyId)
+                .single()
+
+            setOpportunity(prev => prev ? {
+                ...prev,
+                company_id: companyId,
+                company: companyData || null
+            } : prev)
+        }
+
+        // Then persist to database
+        const { error } = await supabase
+            .from('opportunities')
+            .update({
+                company_id: companyId,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', opportunityId)
+
+        if (error) {
+            console.error('Error updating company:', error)
+            // Revert on error by refetching
+            fetchOpportunity()
+            throw error
+        }
+    }
+
+    // Add a product to the opportunity (via junction table) with optimistic update
+    const addProduct = async (productId: string) => {
+        if (!opportunityId) return
+
+        // First, fetch the product data for optimistic update
+        const { data: productData } = await supabase
+            .from('products')
+            .select('id, name, ncm, manufacturer_id')
+            .eq('id', productId)
+            .single()
+
+        // Optimistic update
+        if (productData) {
+            setOpportunity(prev => prev ? {
+                ...prev,
+                products: [...(prev.products || []), productData]
+            } : prev)
+        }
+
+        const { error } = await supabase
+            .from('opportunity_products')
+            .insert({
+                opportunity_id: opportunityId,
+                product_id: productId,
+            })
+
+        if (error) {
+            // Unique constraint violation means it's already added
+            if (error.code === '23505') {
+                console.warn('Product already added to opportunity')
+                return
+            }
+            console.error('Error adding product:', error)
+            // Revert optimistic update on error
+            setOpportunity(prev => prev ? {
+                ...prev,
+                products: prev.products?.filter(p => p.id !== productId) || []
+            } : prev)
+            throw error
+        }
+    }
+
+    // Remove a product from the opportunity (via junction table)
+    const removeProduct = async (productId: string) => {
+        if (!opportunityId) return
+
+        const { error } = await supabase
+            .from('opportunity_products')
+            .delete()
+            .eq('opportunity_id', opportunityId)
+            .eq('product_id', productId)
+
+        if (error) {
+            console.error('Error removing product:', error)
+            throw error
+        }
+
+        // Optimistic update
+        setOpportunity(prev => prev ? {
+            ...prev,
+            products: prev.products?.filter(p => p.id !== productId) || []
+        } : prev)
+    }
+
+    // Convenience method to get product IDs
+    const getProductIds = useCallback(() => {
+        return opportunity?.products?.map(p => p.id) || []
+    }, [opportunity?.products])
+
     return {
         opportunity,
         stages,
@@ -142,5 +315,10 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
         refetch: fetchOpportunity,
         updateOpportunity,
         updateStage,
+        updateContact,
+        updateCompany,
+        addProduct,
+        removeProduct,
+        getProductIds,
     }
 }

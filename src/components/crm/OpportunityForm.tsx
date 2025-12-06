@@ -108,8 +108,9 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
     const [selectedContactId, setSelectedContactId] = useState<string | null>(
         opportunity?.contact_id || null
     )
-    const [selectedProductId, setSelectedProductId] = useState<string | null>(
-        opportunity?.product_id || null
+    // Multi-product support
+    const [selectedProductIds, setSelectedProductIds] = useState<string[]>(
+        opportunity?.products?.map(p => p.id) || (opportunity?.product_id ? [opportunity.product_id] : [])
     )
 
     // Validation error states for required fields not in the form schema
@@ -145,8 +146,8 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
             setContactError(null)
         }
 
-        if (!selectedProductId) {
-            setProductError('Product is required')
+        if (selectedProductIds.length === 0) {
+            setProductError('At least one product is required')
             hasErrors = true
         } else {
             setProductError(null)
@@ -155,23 +156,27 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
         if (hasErrors) return
 
         try {
-            // Generate title from contact/product if not provided
+            // Generate title from contact/products if not provided
             const contact = contacts.find(c => c.id === selectedContactId)
-            const product = products.find(p => p.id === selectedProductId)
+            const firstProduct = products.find(p => p.id === selectedProductIds[0])
             const generatedTitle = data.title ||
-                [contact?.name, product?.name].filter(Boolean).join(' - ') ||
+                [contact?.name, firstProduct?.name].filter(Boolean).join(' - ') ||
                 'New Opportunity'
 
+            // Pass first product as legacy product_id, full list in metadata for now
+            // The CRM page will handle adding products to junction table after creation
             await onSubmit({
                 title: generatedTitle,
                 contact_id: selectedContactId,
-                company_id: contact?.company_id || null, // Use company from contact
-                product_id: selectedProductId,
+                company_id: contact?.company_id || null,
+                product_id: selectedProductIds[0] || null, // Legacy field
                 lead_origin: data.lead_origin,
+                // Store additional product IDs in metadata for the parent to handle
+                metadata: selectedProductIds.length > 1 ? { additional_product_ids: selectedProductIds.slice(1) } : undefined,
             })
         } catch (error) {
             console.error('OpportunityForm submit error:', error)
-            throw error // Re-throw so CRM.tsx can handle it
+            throw error
         }
     }
 
@@ -350,11 +355,11 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                 )}
             </div>
 
-            {/* Product - RelationalField with nested Manufacturer */}
+            {/* Product - RelationalField with nested Manufacturer (Multi-select) */}
             <div>
                 <label className="block text-sm font-medium mb-2 flex items-center gap-2">
                     <Package className="w-4 h-4 text-muted-foreground" />
-                    Product <span className="text-destructive">*</span>
+                    Products <span className="text-destructive">*</span>
                 </label>
                 <RelationalField
                     entityType="product"
@@ -362,10 +367,12 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                     displayFields={['name']}
                     searchFields={['name']}
                     nestedFormSchema={productFormSchema}
-                    value={selectedProductId}
+                    mode="multi"
+                    value={selectedProductIds}
                     onChange={(val) => {
-                        setSelectedProductId(val as string | null)
-                        if (val) setProductError(null)
+                        const ids = Array.isArray(val) ? val : (val ? [val] : [])
+                        setSelectedProductIds(ids)
+                        if (ids.length > 0) setProductError(null)
                     }}
                     options={productOptions}
                     onSearch={setProductSearch}

@@ -258,16 +258,17 @@ TIMS will provide a secure, modern, and integrated platform that centralizes:
 | FR-79 | The UI MUST be fully responsive (desktop, tablet, mobile) | Must Have |
 | FR-80 | The UI MUST include subtle animations for state changes and transitions | Should Have |
 | FR-81 | All interactive elements MUST have appropriate loading states | Must Have |
+| FR-82 | **All data fetches and updates MUST use optimistic updates with seamless UI transitions - NO hard page reloads are permitted anywhere in the system** | Must Have |
 
 ### 4.15 Document Management
 
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| FR-82 | The system MUST support PDF document uploads | Must Have |
-| FR-83 | The system MUST validate file types on both client and server side | Must Have |
-| FR-84 | The system MUST enforce a maximum file size (configurable, default 10MB) | Must Have |
-| FR-85 | Uploaded documents MUST be stored securely with access controlled by user permissions | Must Have |
-| FR-86 | Users with Download permission MUST be able to download uploaded documents | Must Have |
+| FR-83 | The system MUST support PDF document uploads | Must Have |
+| FR-84 | The system MUST validate file types on both client and server side | Must Have |
+| FR-85 | The system MUST enforce a maximum file size (configurable, default 10MB) | Must Have |
+| FR-86 | Uploaded documents MUST be stored securely with access controlled by user permissions | Must Have |
+| FR-87 | Users with Download permission MUST be able to download uploaded documents | Must Have |
 
 ---
 
