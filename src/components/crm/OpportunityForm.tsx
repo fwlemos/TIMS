@@ -9,22 +9,13 @@ import { useCompanies } from '@/hooks/useCompanies'
 import { useProducts } from '@/hooks/useProducts'
 import { useUsers } from '@/hooks/useUsers'
 
+import { LEAD_ORIGIN_VALUES, LEAD_ORIGIN_OPTIONS } from '@/constants/options'
+import { logger } from '@/utils/logger'
+import { manufacturerFormSchema, companyFormSchema, contactFormSchema, productFormSchema } from '@/constants/schemas'
 import type { InsertTables } from '@/lib/database.types'
 import type { OpportunityWithRelations } from '@/hooks/useOpportunities'
 
-const LEAD_ORIGIN_VALUES = ['website', 'social_media', 'email', 'phone_call', 'events', 'manufacturer', 'referral', 'other'] as const
 type LeadOrigin = typeof LEAD_ORIGIN_VALUES[number]
-
-const LEAD_ORIGINS: { value: LeadOrigin; label: string }[] = [
-    { value: 'website', label: 'Website' },
-    { value: 'social_media', label: 'Social Media' },
-    { value: 'email', label: 'Email' },
-    { value: 'phone_call', label: 'Phone Call' },
-    { value: 'events', label: 'Events' },
-    { value: 'manufacturer', label: 'Manufacturer' },
-    { value: 'referral', label: 'Referral' },
-    { value: 'other', label: 'Other' },
-]
 
 const opportunitySchema = z.object({
     title: z.string().optional(),
@@ -41,65 +32,7 @@ interface OpportunityFormProps {
 }
 
 // Nested form schemas
-const manufacturerFormSchema: FormField[] = [
-    { name: 'name', label: 'Manufacturer Name', type: 'text', required: true, placeholder: 'Enter manufacturer name...' },
-    { name: 'tax_id', label: 'Tax ID (CNPJ/EIN)', type: 'text', placeholder: 'Enter Tax ID' },
-    { name: 'address', label: 'Address', type: 'text', placeholder: 'Enter full address' },
-    { name: 'phone', label: 'Phone', type: 'tel', placeholder: '(00) 00000-0000' },
-    { name: 'website', label: 'Website', type: 'url', placeholder: 'https://example.com' },
-    { name: 'manufacturer_contract_validity', label: 'Contract Validity', type: 'date' },
-    { name: 'manufacturer_exclusivity', label: 'Exclusivity Agreement', type: 'checkbox' },
-    { name: 'observation', label: 'Observation', type: 'textarea', placeholder: 'Additional notes...' },
-]
 
-const companyFormSchema: FormField[] = [
-    { name: 'name', label: 'Company Name', type: 'text', required: true, placeholder: 'Enter company name...' },
-    { name: 'tax_id', label: 'Tax ID (CNPJ/EIN)', type: 'text', placeholder: 'Enter Tax ID' },
-    { name: 'address', label: 'Address', type: 'text', placeholder: 'Enter full address' },
-    { name: 'phone', label: 'Phone', type: 'tel', placeholder: '(00) 00000-0000' },
-    { name: 'website', label: 'Website', type: 'url', placeholder: 'https://example.com' },
-    { name: 'observation', label: 'Observation', type: 'textarea', placeholder: 'Additional notes...' },
-]
-
-// Contact form with nested Company field
-const contactFormSchema: FormField[] = [
-    { name: 'name', label: 'Contact Name', type: 'text', required: true, placeholder: 'Enter name...' },
-    { name: 'email', label: 'Email', type: 'email', placeholder: 'email@example.com' },
-    { name: 'phone', label: 'Phone', type: 'tel', placeholder: '(00) 00000-0000' },
-    { name: 'observation', label: 'Observation', type: 'textarea', placeholder: 'Additional notes...' },
-    {
-        name: 'company_id',
-        label: 'Company',
-        type: 'relational',
-        relationalConfig: {
-            entityType: 'company',
-            entityLabel: 'Company',
-            displayFields: ['name'],
-            searchFields: ['name'],
-            nestedFormSchema: companyFormSchema,
-        }
-    },
-]
-
-// Product form with nested Manufacturer field
-const productFormSchema: FormField[] = [
-    { name: 'name', label: 'Product Name', type: 'text', required: true, placeholder: 'Enter product name...' },
-    { name: 'technical_description', label: 'Technical Description', type: 'textarea', placeholder: 'Enter technical details...' },
-    { name: 'ncm', label: 'NCM Code', type: 'text', placeholder: '0000.00.00' },
-    {
-        name: 'manufacturer_id',
-        label: 'Manufacturer',
-        type: 'relational',
-        required: true,
-        relationalConfig: {
-            entityType: 'manufacturer',
-            entityLabel: 'Manufacturer',
-            displayFields: ['name'],
-            searchFields: ['name'],
-            nestedFormSchema: manufacturerFormSchema,
-        }
-    },
-]
 
 export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps) {
     const { contacts, createContact, updateContact, refetch: refetchContacts } = useContacts()
@@ -182,7 +115,7 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                 metadata: selectedProductIds.length > 1 ? { additional_product_ids: selectedProductIds.slice(1) } : undefined,
             })
         } catch (error) {
-            console.error('OpportunityForm submit error:', error)
+            logger.error('OpportunityForm submit error:', { error })
             throw error
         }
     }
@@ -453,7 +386,7 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
     ])
 
     const onFormError = (errors: Record<string, unknown>) => {
-        console.error('Form validation errors:', errors)
+        logger.error('Form validation errors:', { errors })
     }
 
     return (
@@ -570,7 +503,7 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                 </label>
                 <select {...register('lead_origin')} className="input">
                     <option value="">Select origin...</option>
-                    {LEAD_ORIGINS.map((origin) => (
+                    {LEAD_ORIGIN_OPTIONS.map((origin) => (
                         <option key={origin.value} value={origin.value}>
                             {origin.label}
                         </option>

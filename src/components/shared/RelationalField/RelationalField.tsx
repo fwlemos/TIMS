@@ -50,7 +50,7 @@ export function RelationalField({
     const triggerRef = useRef<HTMLButtonElement>(null)
     const formTriggerRef = useRef<HTMLButtonElement>(null)
     const editTriggerRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
-    const searchTimeoutRef = useRef<NodeJS.Timeout>()
+    const searchTimeoutRef = useRef<NodeJS.Timeout>(undefined)
 
     // Normalize value to array for multi-mode consistent handling
     const selectedIds = useMemo(() => {
@@ -289,7 +289,7 @@ export function RelationalField({
                         entityLabel={entityLabel}
                         isLoading={isSearching}
                         canCreate={canCreate && canNestDeeper}
-                        triggerRef={triggerRef}
+                        triggerRef={triggerRef as React.RefObject<HTMLElement>}
                     />
                 </div>
             )}
@@ -318,7 +318,7 @@ export function RelationalField({
                 <FloatingFormPanel
                     isOpen={nestedFormOpen}
                     onClose={handleNestedFormCancel}
-                    triggerRef={editingId ? { current: editTriggerRefs.current.get(editingId) || null } : formTriggerRef}
+                    triggerRef={editingId ? { current: editTriggerRefs.current.get(editingId) || null } as any : (formTriggerRef as React.RefObject<HTMLElement>)}
                     title={editingId ? `Edit ${entityLabel}` : `New ${entityLabel}`}
                 >
                     <RelationalNestedForm

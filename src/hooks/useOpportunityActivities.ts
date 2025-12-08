@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { OpportunityActivity, InsertTables, UpdateTables } from '@/lib/database.types'
+import { logger } from '@/utils/logger'
 
 export function useOpportunityActivities(opportunityId: string | undefined) {
     const [loading, setLoading] = useState(false)
@@ -28,7 +29,7 @@ export function useOpportunityActivities(opportunityId: string | undefined) {
 
             return data
         } catch (err) {
-            console.error('Error creating activity:', err)
+            logger.error('Error creating activity:', { error: err })
             setError(err instanceof Error ? err.message : 'Failed to create activity')
             return null
         } finally {
@@ -58,7 +59,7 @@ export function useOpportunityActivities(opportunityId: string | undefined) {
 
             return data
         } catch (err) {
-            console.error('Error updating activity:', err)
+            logger.error('Error updating activity:', { error: err })
             setError(err instanceof Error ? err.message : 'Failed to update activity')
             return null
         } finally {
@@ -81,7 +82,7 @@ export function useOpportunityActivities(opportunityId: string | undefined) {
 
             return true
         } catch (err) {
-            console.error('Error deleting activity:', err)
+            logger.error('Error deleting activity:', { error: err })
             setError(err instanceof Error ? err.message : 'Failed to delete activity')
             return false
         } finally {

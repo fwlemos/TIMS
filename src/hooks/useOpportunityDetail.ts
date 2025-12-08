@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Opportunity, PipelineStage, UpdateTables } from '@/lib/database.types'
+import { logger } from '@/utils/logger'
 
 export interface OpportunityDetailWithRelations extends Opportunity {
     contact?: {
@@ -55,7 +56,7 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
             .order('order_index')
 
         if (error) {
-            console.error('Error fetching stages:', error)
+            logger.error('Error fetching stages:', { error })
             return []
         }
         return data || []
@@ -133,7 +134,7 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
             .eq('id', opportunityId)
 
         if (error) {
-            console.error('Error updating opportunity:', error)
+            logger.error('Error updating opportunity:', { error })
             // Revert on error
             fetchOpportunity()
             throw error
@@ -161,7 +162,7 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
             .eq('id', opportunityId)
 
         if (error) {
-            console.error('Error updating stage:', error)
+            logger.error('Error updating stage:', { error })
             // Revert on error
             fetchOpportunity()
             throw error
@@ -201,7 +202,7 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
             .eq('id', opportunityId)
 
         if (error) {
-            console.error('Error updating contact:', error)
+            logger.error('Error updating contact:', { error })
             // Revert on error by refetching
             fetchOpportunity()
             throw error
@@ -241,7 +242,7 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
             .eq('id', opportunityId)
 
         if (error) {
-            console.error('Error updating company:', error)
+            logger.error('Error updating company:', { error })
             // Revert on error by refetching
             fetchOpportunity()
             throw error
@@ -280,7 +281,7 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
                 console.warn('Product already added to opportunity')
                 return
             }
-            console.error('Error adding product:', error)
+            logger.error('Error adding product:', { error })
             // Revert optimistic update on error
             setOpportunity(prev => prev ? {
                 ...prev,
@@ -301,7 +302,7 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
             .eq('product_id', productId)
 
         if (error) {
-            console.error('Error removing product:', error)
+            logger.error('Error removing product:', { error })
             throw error
         }
 

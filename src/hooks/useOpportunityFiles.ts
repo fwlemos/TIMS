@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useDocuments } from './useDocuments'
 import { supabase } from '@/lib/supabase'
 import type { Document } from '@/lib/database.types'
+import { logger } from '@/utils/logger'
 
 export function useOpportunityFiles(opportunityId: string | undefined) {
     const {
@@ -56,10 +57,10 @@ export function useOpportunityFiles(opportunityId: string | undefined) {
                     user_id: (await supabase.auth.getUser()).data.user?.id
                 })
 
-            if (historyError) console.error('Failed to log file upload history:', historyError)
+            if (historyError) logger.error('Failed to log file upload history:', { error: historyError })
 
         } catch (error) {
-            console.error('Error in uploadFile:', error)
+            logger.error('Error in uploadFile:', { error })
             throw error
         }
     }, [opportunityId, baseUpload])
@@ -81,10 +82,10 @@ export function useOpportunityFiles(opportunityId: string | undefined) {
                     user_id: (await supabase.auth.getUser()).data.user?.id
                 })
 
-            if (historyError) console.error('Failed to log file delete history:', historyError)
+            if (historyError) logger.error('Failed to log file delete history:', { error: historyError })
 
         } catch (error) {
-            console.error('Error in deleteFile:', error)
+            logger.error('Error in deleteFile:', { error })
             throw error
         }
     }, [opportunityId, baseDelete])

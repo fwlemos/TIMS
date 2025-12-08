@@ -10,6 +10,7 @@ import { SlidePanel } from '@/components/shared/SlidePanel'
 import { FAB } from '@/components/shared/FAB'
 import { useOpportunities, OpportunityWithRelations } from '@/hooks/useOpportunities'
 
+import { logger } from '@/utils/logger'
 type ViewMode = 'kanban' | 'list'
 
 export default function CRM() {
@@ -47,7 +48,7 @@ export default function CRM() {
             await createOpportunity(data)
             setShowCreatePanel(false)
         } catch (error) {
-            console.error('Error creating opportunity:', error)
+            logger.error('Error creating opportunity:', { error })
             const err = error as { message?: string }
             alert(`Failed to create opportunity: ${err.message || 'Unknown error'}`)
         }

@@ -21,7 +21,7 @@ export function useGlobalSearch() {
     const [isSearching, setIsSearching] = useState(false)
     const [hasSearched, setHasSearched] = useState(false)
 
-    const debounceRef = useRef<NodeJS.Timeout>()
+    const debounceRef = useRef<NodeJS.Timeout>(undefined)
 
     const search = useCallback(async (searchQuery: string) => {
         if (searchQuery.length < MIN_QUERY_LENGTH) {

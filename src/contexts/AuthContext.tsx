@@ -17,12 +17,14 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Domain restriction - only allow @tennessine.com.br emails
-const ALLOWED_DOMAIN = 'tennessine.com.br'
+// Domain restriction - only allow specific emails
+const ALLOWED_DOMAIN = import.meta.env.VITE_ALLOWED_DOMAIN || 'tennessine.com.br'
 
 function isAllowedEmail(email: string): boolean {
-    // For development, allow any email. In production, enforce domain restriction.
-    if (import.meta.env.DEV) return true
+    // Only allow bypass if explicitly enabled via environment variable
+    if (import.meta.env.VITE_ALLOW_ANY_EMAIL === 'true') {
+        return true
+    }
     return email.endsWith(`@${ALLOWED_DOMAIN}`)
 }
 
@@ -55,6 +57,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         )
 
         return () => subscription.unsubscribe()
+    }, [])
+
+    useEffect(() => {
+        if (import.meta.env.VITE_ALLOW_ANY_EMAIL === 'true') {
+            console.warn(
+                '%c SECURITY WARNING: Domain restriction is DISABLED via VITE_ALLOW_ANY_EMAIL. \nThis should NEVER be enabled in production.',
+                'background: #ff0000; color: #ffffff; font-size: 14px; padding: 4px; border-radius: 4px;'
+            )
+        }
     }, [])
 
     const signInWithEmail = async (email: string, password: string) => {

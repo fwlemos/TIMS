@@ -16,6 +16,7 @@ import { OpportunityCard } from './OpportunityCard'
 import { KanbanAdvanceModal } from './KanbanAdvanceModal'
 import type { OpportunityWithRelations } from '@/hooks/useOpportunities'
 import type { Tables, Opportunity } from '@/lib/database.types'
+import { logger } from '@/utils/logger'
 
 // Stage fields configuration for validation
 interface StageField {
@@ -244,7 +245,7 @@ export function KanbanBoard({
                 try {
                     await onMoveOpportunity(activeId, finalStageId)
                 } catch (error) {
-                    console.error('Failed to move opportunity:', error)
+                    logger.error('Failed to move opportunity:', { error })
                     // Revert
                     const originalStage = stages.find(s => s.id === originalStageId)
                     setOpportunities(prev => prev.map(o =>
@@ -280,7 +281,7 @@ export function KanbanBoard({
                     try {
                         await onMoveOpportunity(activeId, finalStageId)
                     } catch (error) {
-                        console.error('Failed to move opportunity:', error)
+                        logger.error('Failed to move opportunity:', { error })
                         const originalStage = stages.find(s => s.id === originalStageId)
                         setOpportunities(prev => prev.map(o =>
                             o.id === activeId ? { ...o, stage_id: originalStageId, stage: originalStage || null } : o
@@ -313,7 +314,7 @@ export function KanbanBoard({
                 o.id === pendingAdvancement.opportunityId ? { ...o, ...fieldValues, stage_id: pendingAdvancement.toStageId, stage: newStage || null } : o
             ))
         } catch (error) {
-            console.error('Failed to advance opportunity:', error)
+            logger.error('Failed to advance opportunity:', { error })
         }
     }
 

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Opportunity, PipelineStage, InsertTables, UpdateTables } from '@/lib/database.types'
+import { logger } from '@/utils/logger'
 
 export interface OpportunityWithRelations extends Opportunity {
     contact?: {
@@ -44,7 +45,7 @@ export function useOpportunities() {
             .order('order_index')
 
         if (error) {
-            console.error('Error fetching stages:', error)
+            logger.error('Error fetching stages:', { error })
             return []
         }
         return data || []
@@ -52,12 +53,15 @@ export function useOpportunities() {
 
     // Helper to transform raw Supabase response to OpportunityWithRelations
     const transformOpportunity = (raw: any): OpportunityWithRelations => {
-        const products = raw.opportunity_products?.map((op: any) => ({
+        // Safe access with types or optionals
+        const rawProducts = raw.opportunity_products as Array<{ product: { id: string; name: string; ncm?: string | null; manufacturer?: { id: string; name: string } | null } | null }> | null | undefined
+
+        const products = rawProducts?.map(op => ({
             id: op.product?.id,
             name: op.product?.name,
             ncm: op.product?.ncm,
             manufacturer: op.product?.manufacturer
-        })).filter((p: any) => p.id) || []
+        })).filter((p): p is NonNullable<typeof p> & { id: string; name: string } => !!p.id && !!p.name) || []
 
         const contact = raw.contact ? {
             ...raw.contact,
@@ -121,7 +125,7 @@ export function useOpportunities() {
             const transformed = (opportunitiesResult.data || []).map(transformOpportunity)
             setOpportunities(transformed)
         } catch (err: any) {
-            console.error('Error fetching opportunities:', err)
+            logger.error('Error fetching opportunities:', { error: err })
             setError(err.message)
             setOpportunities([])
         } finally {

@@ -12,7 +12,7 @@ export { DataTable } from './shared/DataTable'
 export { FAB } from './shared/FAB'
 export { Input } from './shared/Input'
 export { Modal } from './shared/Modal'
-export { Skeleton } from './shared/Skeleton'
+
 
 // Route guard
 export { ProtectedRoute } from './ProtectedRoute'

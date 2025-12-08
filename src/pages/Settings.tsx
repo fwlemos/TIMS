@@ -3,10 +3,12 @@ import { useTranslation } from 'react-i18next'
 import { clsx } from 'clsx'
 import { Palette, Globe, Shield, Moon, Sun, Check } from 'lucide-react'
 import { AdminPermissions } from '@/components/admin/AdminPermissions'
+import { useCurrentUserPermissions } from '@/hooks/useCurrentUserPermissions'
+import { PermissionGuard } from '@/components/shared/PermissionGuard'
 
 type SettingsTab = 'appearance' | 'language' | 'permissions'
 
-const tabs: { id: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const tabsRaw: { id: SettingsTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'language', label: 'Language', icon: Globe },
     { id: 'permissions', label: 'Permissions', icon: Shield },
@@ -19,6 +21,7 @@ const languages = [
 
 export default function Settings() {
     const { t, i18n } = useTranslation()
+    const { can, loading } = useCurrentUserPermissions()
     const [activeTab, setActiveTab] = useState<SettingsTab>('appearance')
     const [isDark, setIsDark] = useState(() => {
         if (typeof window !== 'undefined') {
@@ -28,6 +31,16 @@ export default function Settings() {
     })
 
     const currentLanguage = i18n.language
+
+    // Filter tabs based on permission
+    // Users need to view 'users' resource (admin) or 'settings' resource
+    // For now we assume 'users' view perm implies admin
+    const tabs = tabsRaw.filter(tab => {
+        if (tab.id === 'permissions') {
+            return !loading && can('users', 'can_view')
+        }
+        return true
+    })
 
     const toggleTheme = (dark: boolean) => {
         setIsDark(dark)
@@ -165,7 +178,11 @@ export default function Settings() {
                 </div>
             )}
 
-            {activeTab === 'permissions' && <AdminPermissions />}
+            {activeTab === 'permissions' && (
+                <PermissionGuard resource="users" action="can_view" fallback={<div className="p-4 text-red-500">Access Denied</div>}>
+                    <AdminPermissions />
+                </PermissionGuard>
+            )}
         </div>
     )
 }

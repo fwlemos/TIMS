@@ -91,7 +91,7 @@ export default function Login() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="input pl-10"
-                                    placeholder="you@tennessine.com.br"
+                                    placeholder={`you@${import.meta.env.VITE_ALLOWED_DOMAIN || 'tennessine.com.br'}`}
                                     required
                                 />
                             </div>
