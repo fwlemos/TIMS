@@ -1,12 +1,33 @@
+
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Opportunity, PipelineStage, InsertTables, UpdateTables } from '@/lib/database.types'
 
 export interface OpportunityWithRelations extends Opportunity {
-    contact?: { id: string; name: string } | null
-    company?: { id: string; name: string } | null
+    contact?: {
+        id: string
+        name: string
+        email?: string | null
+        phone?: string | null
+        company?: { id: string; name: string } | null
+    } | null
+    company?: {
+        id: string
+        name: string
+        phone?: string | null
+        address?: string | null
+        website?: string | null
+    } | null
     product?: { id: string; name: string } | null  // Legacy single product
-    products?: Array<{ id: string; name: string }>  // New: multiple products
+    products?: Array<{
+        id: string
+        name: string
+        ncm?: string | null
+        manufacturer?: {
+            id: string
+            name: string
+        } | null
+    }>
     stage?: PipelineStage | null
 }
 
@@ -29,34 +50,83 @@ export function useOpportunities() {
         return data || []
     }, [])
 
+    // Helper to transform raw Supabase response to OpportunityWithRelations
+    const transformOpportunity = (raw: any): OpportunityWithRelations => {
+        const products = raw.opportunity_products?.map((op: any) => ({
+            id: op.product?.id,
+            name: op.product?.name,
+            ncm: op.product?.ncm,
+            manufacturer: op.product?.manufacturer
+        })).filter((p: any) => p.id) || []
+
+        const contact = raw.contact ? {
+            ...raw.contact,
+            company: raw.contact.company
+        } : null
+
+        return {
+            ...raw,
+            contact,
+            products,
+            opportunity_products: undefined // Cleanup raw relation
+        }
+    }
+
     const fetchOpportunities = useCallback(async (showLoading = true) => {
         if (showLoading) setLoading(true)
         setError(null)
 
-        const [stagesData, opportunitiesResult] = await Promise.all([
-            fetchStages(),
-            supabase
-                .from('opportunities')
-                .select(`
-          *,
-          contact:contacts(id, name),
-          company:companies(id, name),
-          product:products(id, name),
-          stage:pipeline_stages(*)
-        `)
-                .is('deleted_at', null)
-                .order('created_at', { ascending: false })
-        ])
+        try {
+            const [stagesData, opportunitiesResult] = await Promise.all([
+                fetchStages(),
+                supabase
+                    .from('opportunities')
+                    .select(`
+                        *,
+                        contact:contacts(
+                            id, 
+                            name, 
+                            email, 
+                            phone,
+                            company:companies(id, name)
+                        ),
+                        company:companies(
+                            id, 
+                            name,
+                            phone,
+                            address,
+                            website
+                        ),
+                        product:products(id, name),
+                        opportunity_products(
+                            product:products(
+                                id, 
+                                name, 
+                                ncm, 
+                                manufacturer:companies(id, name)
+                            )
+                        ),
+                        stage:pipeline_stages(*)
+                    `)
+                    .is('deleted_at', null)
+                    .order('created_at', { ascending: false })
+            ])
 
-        setStages(stagesData)
+            setStages(stagesData)
 
-        if (opportunitiesResult.error) {
-            setError(opportunitiesResult.error.message)
+            if (opportunitiesResult.error) {
+                throw opportunitiesResult.error
+            }
+
+            const transformed = (opportunitiesResult.data || []).map(transformOpportunity)
+            setOpportunities(transformed)
+        } catch (err: any) {
+            console.error('Error fetching opportunities:', err)
+            setError(err.message)
             setOpportunities([])
-        } else {
-            setOpportunities(opportunitiesResult.data || [])
+        } finally {
+            setLoading(false)
         }
-        setLoading(false)
     }, [fetchStages])
 
     useEffect(() => {
@@ -82,9 +152,12 @@ export function useOpportunities() {
             })
             .select(`
                 *,
-                contact:contacts(id, name),
-                company:companies(id, name),
+                contact:contacts(id, name, email, phone, company:companies(id, name)),
+                company:companies(id, name, phone, address, website),
                 product:products(id, name),
+                opportunity_products(
+                    product:products(id, name, ncm, manufacturer:companies(id, name))
+                ),
                 stage:pipeline_stages(*)
             `)
             .single()
@@ -105,17 +178,35 @@ export function useOpportunities() {
                 .throwOnError()
         }
 
-        // Optimistic update: Add new opportunity to state
-        setOpportunities(prev => [data, ...prev])
+        // We need to fetch full object to be safe and consistent
+        const { data: fullData, error: fetchError } = await supabase
+            .from('opportunities')
+            .select(`
+                *,
+                contact:contacts(id, name, email, phone, company:companies(id, name)),
+                company:companies(id, name, phone, address, website),
+                product:products(id, name),
+                opportunity_products(
+                    product:products(id, name, ncm, manufacturer:companies(id, name))
+                ),
+                stage:pipeline_stages(*)
+            `)
+            .eq('id', data.id)
+            .single()
 
-        // Log creation in background (don't await)
+        if (fetchError) throw fetchError
+
+        const transformed = transformOpportunity(fullData)
+        setOpportunities(prev => [transformed, ...prev])
+
+        // Log creation
         supabase.from('opportunity_history').insert({
             opportunity_id: data.id,
             action: 'created',
             new_value: data.title,
         })
 
-        return data
+        return transformed
     }
 
     const updateOpportunity = async (id: string, updates: UpdateTables<'opportunities'>) => {
@@ -130,9 +221,12 @@ export function useOpportunities() {
             .eq('id', id)
             .select(`
                 *,
-                contact:contacts(id, name),
-                company:companies(id, name),
+                contact:contacts(id, name, email, phone, company:companies(id, name)),
+                company:companies(id, name, phone, address, website),
                 product:products(id, name),
+                opportunity_products(
+                    product:products(id, name, ncm, manufacturer:companies(id, name))
+                ),
                 stage:pipeline_stages(*)
             `)
             .single()
@@ -143,9 +237,9 @@ export function useOpportunities() {
             throw error
         }
 
-        // Update with full data from server
-        setOpportunities(prev => prev.map(o => o.id === id ? data : o))
-        return data
+        const transformed = transformOpportunity(data)
+        setOpportunities(prev => prev.map(o => o.id === id ? transformed : o))
+        return transformed
     }
 
     const moveOpportunity = async (id: string, newStageId: string) => {
@@ -155,7 +249,7 @@ export function useOpportunities() {
         const oldStageId = opportunity.stage_id
         const newStage = stages.find(s => s.id === newStageId)
 
-        // Optimistic update: Move opportunity in local state immediately
+        // Optimistic update
         setOpportunities(prev => prev.map(o =>
             o.id === id ? { ...o, stage_id: newStageId, stage: newStage || null } : o
         ))
@@ -168,7 +262,6 @@ export function useOpportunities() {
             .single()
 
         if (error) {
-            // Revert optimistic update on error
             const oldStage = stages.find(s => s.id === oldStageId)
             setOpportunities(prev => prev.map(o =>
                 o.id === id ? { ...o, stage_id: oldStageId, stage: oldStage || null } : o
@@ -176,7 +269,7 @@ export function useOpportunities() {
             throw error
         }
 
-        // Log stage change in background (don't await)
+        // Log stage change
         const oldStageName = stages.find(s => s.id === oldStageId)?.name
         supabase.from('opportunity_history').insert({
             opportunity_id: id,
@@ -190,7 +283,6 @@ export function useOpportunities() {
     }
 
     const deleteOpportunity = async (id: string) => {
-        // Optimistic update: Remove from local state immediately
         const deletedOpp = opportunities.find(o => o.id === id)
         setOpportunities(prev => prev.filter(o => o.id !== id))
 
@@ -200,7 +292,6 @@ export function useOpportunities() {
             .eq('id', id)
 
         if (error) {
-            // Revert on error
             if (deletedOpp) {
                 setOpportunities(prev => [...prev, deletedOpp])
             }
@@ -208,7 +299,6 @@ export function useOpportunities() {
         }
     }
 
-    // Reorder opportunities within a stage (for sortable)
     const reorderOpportunities = (activeId: string, overId: string) => {
         setOpportunities(prev => {
             const activeIndex = prev.findIndex(o => o.id === activeId)
@@ -223,11 +313,43 @@ export function useOpportunities() {
         })
     }
 
-    // Group opportunities by stage
     const opportunitiesByStage = stages.reduce((acc, stage) => {
         acc[stage.id] = opportunities.filter(o => o.stage_id === stage.id)
         return acc
     }, {} as Record<string, OpportunityWithRelations[]>)
+
+    // Add function to refresh a single opportunity (useful for detail view)
+    const refreshOpportunity = async (id: string) => {
+        const { data, error } = await supabase
+            .from('opportunities')
+            .select(`
+                *,
+                contact:contacts(id, name, email, phone, company:companies(id, name)),
+                company:companies(id, name, phone, address, website),
+                product:products(id, name),
+                opportunity_products(
+                    product:products(id, name, ncm, manufacturer:companies(id, name))
+                ),
+                stage:pipeline_stages(*)
+            `)
+            .eq('id', id)
+            .single()
+
+        if (!error && data) {
+            const transformed = transformOpportunity(data)
+            setOpportunities(prev => {
+                const index = prev.findIndex(o => o.id === id)
+                if (index >= 0) {
+                    const newArr = [...prev]
+                    newArr[index] = transformed
+                    return newArr
+                }
+                return [...prev, transformed]
+            })
+            return transformed
+        }
+        return null
+    }
 
     return {
         opportunities,
@@ -235,8 +357,9 @@ export function useOpportunities() {
         opportunitiesByStage,
         loading,
         error,
-        setOpportunities, // Expose for drag-over reordering
+        setOpportunities,
         refetch: fetchOpportunities,
+        refreshOpportunity,
         createOpportunity,
         updateOpportunity,
         moveOpportunity,
@@ -244,4 +367,3 @@ export function useOpportunities() {
         reorderOpportunities,
     }
 }
-

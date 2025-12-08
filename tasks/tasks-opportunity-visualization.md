@@ -138,3 +138,18 @@
   - [ ] 11.11 Verify Portuguese translations for new UI elements
   - [ ] 11.12 Run `npm run build` to verify no errors
   - [ ] 11.13 Commit and push to feature branch
+
+---
+
+- [ ] 7.0 Layout Refactor - 3 Columns (Late Requirement)
+  - [ ] 7.1 Refactor `OpportunityDetail.tsx` to use 3-column layout (grid-cols-12 or flex)
+  - [ ] 7.2 Move `TimelineSection` to new Left Column (Col 1)
+  - [ ] 7.3 Keep `RelatedEntitiesPanel` and `FilesSection` in new Right Column (Col 3)
+  - [ ] 7.4 Center Column (Col 2) will house General Details and Stage Fields (or Tab content)
+
+- [ ] 8.0 Stage vs Summary Tabs
+  - [ ] 8.1 Create `OpportunitySummary.tsx` component (Read-only view of all fields)
+  - [ ] 8.2 Add Tabs to Center Column: "Stages" and "Summary"
+  - [ ] 8.3 Implement Tab Default Logic: Active -> Stages, Closed (Won/Lost) -> Summary
+  - [ ] 8.4 Ensure "Stages" tab contains the `StageAccordion` and `GeneralDetails`
+

@@ -1,3 +1,4 @@
+
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Calendar, XCircle, Loader2, User, Building2, Check, Package, ChevronsUpDown, UserCircle, Factory } from 'lucide-react'
 import { useState, useCallback, useMemo, useRef } from 'react'
@@ -5,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useOpportunityDetail } from '@/hooks/useOpportunityDetail'
 import { StageBreadcrumb, StageAccordion, TimelineSection, ActivitiesPanel, FilesSection } from '@/components/opportunity'
 import type { StageAccordionHandle } from '@/components/opportunity'
+import { OpportunitySummary } from '@/components/opportunity/OpportunitySummary'
 import { LostReasonModal } from '@/components/crm/LostReasonModal'
 import { MarkAsWonModal } from '@/components/crm/MarkAsWonModal'
 import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from '@/components/shared/RelationalField'
@@ -121,6 +123,19 @@ export default function OpportunityDetail() {
     // Ref for stage accordion expand/collapse control
     const stageAccordionRef = useRef<StageAccordionHandle>(null)
     const [allStagesExpanded, setAllStagesExpanded] = useState(false)
+
+    // Layout State: Active Tab (Stages vs Summary) 
+    const [activeTab, setActiveTab] = useState<'stages' | 'summary'>('stages')
+
+    // Automatically set default tab on load when opportunity is ready
+    const [initialTabSet, setInitialTabSet] = useState(false)
+
+    if (opportunity && !initialTabSet) {
+        const isTerminal = opportunity.stage?.name.toLowerCase().includes('lost') ||
+            opportunity.stage?.name.toLowerCase().includes('won')
+        setActiveTab(isTerminal ? 'summary' : 'stages')
+        setInitialTabSet(true)
+    }
 
     // Calculate days since creation
     const getDaysOpen = () => {
@@ -241,6 +256,7 @@ export default function OpportunityDetail() {
         }
         setShowLostModal(false)
         setTimelineRefreshTrigger(prev => prev + 1)
+        setActiveTab('summary')
     }
 
     const handleMarkAsWon = async (data: { description?: string, fileUrl?: string }) => {
@@ -267,6 +283,7 @@ export default function OpportunityDetail() {
         }
         setShowWonModal(false)
         setTimelineRefreshTrigger(prev => prev + 1)
+        setActiveTab('summary')
     }
 
     const handleStageChange = async (newStageId: string) => {
@@ -549,9 +566,9 @@ export default function OpportunityDetail() {
     }
 
     return (
-        <div className="h-full flex flex-col gap-6 overflow-y-auto">
+        <div className="h-full flex flex-col gap-6 overflow-hidden">
             {/* Header - Unified Row */}
-            <div className="flex items-center justify-between gap-6 p-4 bg-card border border-border rounded-xl shadow-sm">
+            <div className="flex items-center justify-between gap-6 p-4 bg-card border border-border rounded-xl shadow-sm flex-shrink-0">
                 {/* Left Section: Back Button + Title Block */}
                 <div className="flex items-center gap-4 flex-shrink-0 min-w-[280px]">
                     <button
@@ -626,223 +643,117 @@ export default function OpportunityDetail() {
                 </div>
             </div>
 
-            {/* Main Content - 2 Columns */}
-            <div className="flex-1 flex gap-6 min-h-0 overflow-hidden">
-                {/* Left Column (Main) - Flex 2 */}
-                <div className="flex-[2] flex flex-col gap-6 overflow-y-auto min-h-0 pr-2">
-                    {/* Stage Fields Accordion */}
-                    <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold">Stage Fields</h2>
-                            <button
-                                onClick={() => stageAccordionRef.current?.toggleAll()}
-                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
-                            >
-                                <ChevronsUpDown className="w-3.5 h-3.5" />
-                                {allStagesExpanded ? 'Collapse All' : 'Expand All'}
-                            </button>
-                        </div>
-                        <StageAccordion
-                            ref={stageAccordionRef}
-                            opportunity={opportunity}
-                            stages={stages}
-                            currentStageId={opportunity.stage_id}
-                            onFieldChange={handleFieldChange}
-                            disabled={isTerminal}
-                            savingField={savingField}
-                            savedField={savedField}
-                            onExpandChange={(allExpanded) => setAllStagesExpanded(allExpanded)}
-                        />
-                    </div>
+            {/* Main Content - 3 Column Layout */}
+            <div className="flex-1 grid grid-cols-12 gap-6 min-h-0 overflow-hidden">
 
-                    {/* History & Activities (Moved from Sidebar) */}
+                {/* 1. LEFT COLUMN: History (Timeline) - Span 3 */}
+                <div className="col-span-3 flex flex-col gap-6 overflow-y-auto min-h-0 pr-1">
                     <div className="space-y-6">
-                        <ActivitiesPanel
+                        <TimelineSection
                             opportunityId={opportunity.id}
-                            onActivityAdded={() => setTimelineRefreshTrigger(prev => prev + 1)}
+                            refreshTrigger={timelineRefreshTrigger}
                         />
-                    </div>
-
-                    {/* Opportunity Details Section */}
-                    <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
-                        <h2 className="text-lg font-semibold mb-4">General Details</h2>
-
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                            {/* Lead Origin */}
-                            <div>
-                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                    Lead Origin
-                                    <FieldIndicator field="lead_origin" />
-                                </label>
-                                <select
-                                    defaultValue={opportunity.lead_origin || ''}
-                                    onChange={(e) => handleFieldChange('lead_origin', e.target.value || null)}
-                                    className="input w-full"
-                                    disabled={isTerminal}
-                                >
-                                    <option value="">Select...</option>
-                                    {LEAD_ORIGIN_OPTIONS.map(opt => (
-                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Office */}
-                            <div>
-                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                    Office
-                                    <FieldIndicator field="office" />
-                                </label>
-                                <select
-                                    defaultValue={opportunity.office || ''}
-                                    onChange={(e) => handleFieldChange('office', e.target.value || null)}
-                                    className="input w-full"
-                                    disabled={isTerminal}
-                                >
-                                    <option value="">Select...</option>
-                                    {OFFICE_OPTIONS.map(opt => (
-                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Quote Number */}
-                            <div>
-                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                    Quote Number
-                                    <FieldIndicator field="quote_number" />
-                                </label>
-                                <input
-                                    type="text"
-                                    defaultValue={opportunity.quote_number || ''}
-                                    onBlur={(e) => {
-                                        const newValue = e.target.value || null
-                                        if (newValue !== opportunity.quote_number) {
-                                            handleFieldChange('quote_number', newValue)
-                                        }
-                                    }}
-                                    className="input w-full"
-                                    placeholder="Enter quote number"
-                                    disabled={isTerminal}
-                                />
-                            </div>
-
-                            {/* Currency */}
-                            <div>
-                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                    Currency
-                                    <FieldIndicator field="currency" />
-                                </label>
-                                <select
-                                    defaultValue={opportunity.currency || 'BRL'}
-                                    onChange={(e) => handleFieldChange('currency', e.target.value)}
-                                    className="input w-full"
-                                    disabled={isTerminal}
-                                >
-                                    <option value="BRL">BRL</option>
-                                    <option value="USD">USD</option>
-                                    <option value="EUR">EUR</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
-                {/* Right Column (Sidebar) - Flex 1 */}
-                <div className="flex-[1] flex flex-col gap-6 overflow-y-auto min-h-0 min-w-[320px] pb-4">
-                    {/* Related Entities (Red Position) */}
+                {/* 2. CENTER COLUMN: Stage Fields & Summary - Span 6 */}
+                <div className="col-span-6 flex flex-col gap-4 overflow-y-auto min-h-0 px-1">
+
+                    {/* Tabs Switcher */}
+                    <div className="flex p-1 bg-muted rounded-lg w-full">
+                        <button
+                            onClick={() => setActiveTab('stages')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'stages'
+                                ? 'bg-background shadow text-foreground'
+                                : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            <Calendar className="w-4 h-4" />
+                            Stage Fields
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('summary')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'summary'
+                                ? 'bg-background shadow text-foreground'
+                                : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            <Check className="w-4 h-4" />
+                            Summary
+                        </button>
+                    </div>
+
+                    {/* Tab Content */}
+                    <div className="flex-1 overflow-y-auto">
+                        {activeTab === 'stages' ? (
+                            <div className="space-y-6">
+                                {/* Stage Accordion */}
+                                <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-lg font-semibold">Stage Fields</h2>
+                                        <button onClick={() => stageAccordionRef.current?.toggleAll()} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted">
+                                            <ChevronsUpDown className="w-3.5 h-3.5" /> {allStagesExpanded ? 'Collapse All' : 'Expand All'}
+                                        </button>
+                                    </div>
+                                    <StageAccordion
+                                        ref={stageAccordionRef}
+                                        opportunity={opportunity}
+                                        stages={stages}
+                                        currentStageId={opportunity.stage_id}
+                                        onFieldChange={handleFieldChange}
+                                        disabled={isTerminal}
+                                        savingField={savingField}
+                                        savedField={savedField}
+                                        onExpandChange={(allExpanded) => setAllStagesExpanded(allExpanded)}
+                                    />
+                                </div>
+
+                                <ActivitiesPanel
+                                    opportunityId={opportunity.id}
+                                    onActivityAdded={() => setTimelineRefreshTrigger(prev => prev + 1)}
+                                />
+                            </div>
+                        ) : (
+                            // Summary Tab
+                            <div className="bg-card rounded-xl border border-border p-6 shadow-sm min-h-full">
+                                <h2 className="text-lg font-semibold mb-6">Opportunity Summary</h2>
+                                <OpportunitySummary opportunity={opportunity} />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* 3. RIGHT COLUMN: Related Entities & Files - Span 3 */}
+                <div className="col-span-3 flex flex-col gap-6 overflow-y-auto min-h-0 pl-1 pb-4">
+                    {/* Related Entities */}
                     <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
-                        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                            Related Entities
-                        </h3>
-
+                        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">Related Entities</h3>
                         <div className="space-y-5">
-                            {/* Contact */}
                             <div>
-                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
-                                    <User className="w-4 h-4 text-muted-foreground" />
-                                    Contact
-                                </label>
-                                <RelationalField
-                                    entityType="contact"
-                                    entityLabel="Contact"
-                                    displayFields={['name', 'email']}
-                                    searchFields={['name', 'email', 'phone']}
-                                    nestedFormSchema={contactFormSchema}
-                                    value={opportunity.contact_id}
-                                    onChange={handleContactChange}
-                                    options={contactOptions}
-                                    onSearch={setContactSearch}
-                                    onCreate={handleCreateContact}
-                                    onRefresh={refetchContacts}
-                                    getRecordDisplay={getContactDisplay}
-                                    nestedFieldsConfig={nestedFieldsConfig}
-                                    disabled={isTerminal}
-                                    canCreate
-                                />
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground" /> Contact</label>
+                                <RelationalField entityType="contact" entityLabel="Contact" displayFields={['name', 'email']} searchFields={['name', 'email', 'phone']} nestedFormSchema={contactFormSchema} value={opportunity.contact_id} onChange={handleContactChange} options={contactOptions} onSearch={setContactSearch} onCreate={handleCreateContact} onRefresh={refetchContacts} getRecordDisplay={getContactDisplay} nestedFieldsConfig={nestedFieldsConfig} disabled={isTerminal} canCreate />
                             </div>
-
-                            {/* Company (Derived) */}
                             <div>
-                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
-                                    <Building2 className="w-4 h-4 text-muted-foreground" />
-                                    Company
-                                    <span className="text-xs font-normal text-muted-foreground ml-auto">(From Contact)</span>
-                                </label>
-                                <div className="input w-full bg-muted/50 text-muted-foreground flex items-center min-h-[42px]">
-                                    {opportunity.contact?.company?.name || 'No company associated'}
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2"><Building2 className="w-4 h-4 text-muted-foreground" /> Company <span className="text-xs font-normal text-muted-foreground ml-auto">(From Contact)</span></label>
+                                <div className="input w-full bg-muted/50 text-muted-foreground flex items-center min-h-[42px]">{opportunity.contact?.company?.name || 'No company associated'}</div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2"><Package className="w-4 h-4 text-muted-foreground" /> Products</label>
+                                <RelationalField entityType="product" entityLabel="Products" displayFields={['name', 'ncm']} searchFields={['name', 'ncm']} nestedFormSchema={productFormSchema} value={selectedProductIds} onChange={handleProductsChange} options={productOptions} onSearch={setProductSearch} onCreate={handleCreateProduct} onRefresh={refetchProducts} getRecordDisplay={getProductDisplay} nestedFieldsConfig={nestedFieldsConfig} disabled={isTerminal} canCreate mode="multi" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2"><Factory className="w-4 h-4 text-muted-foreground" /> Manufacturers <span className="text-xs font-normal text-muted-foreground ml-auto">(From Products)</span></label>
+                                <div className="bg-muted/50 rounded-lg p-3 min-h-[42px] border border-input text-sm">
+                                    {opportunity.products && opportunity.products.length > 0 ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            {Array.from(new Set(opportunity.products.flatMap(p => p.manufacturer?.name).filter(Boolean))).map((name, i) => (
+                                                <span key={i} className="bg-background border rounded px-1.5 py-0.5 text-xs font-medium">{name}</span>
+                                            ))}
+                                            {opportunity.products.every(p => !p.manufacturer) && <span className="text-muted-foreground italic">No manufacturers found</span>}
+                                        </div>
+                                    ) : (<span className="text-muted-foreground italic">No products selected</span>)}
                                 </div>
                             </div>
-
-                            {/* Products */}
-                            <div>
-                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
-                                    <Package className="w-4 h-4 text-muted-foreground" />
-                                    Products
-                                </label>
-                                <RelationalField
-                                    entityType="product"
-                                    entityLabel="Product"
-                                    displayFields={['name']}
-                                    searchFields={['name']}
-                                    nestedFormSchema={productFormSchema}
-                                    mode="multi"
-                                    value={selectedProductIds}
-                                    onChange={handleProductsChange}
-                                    options={productOptions}
-                                    onSearch={setProductSearch}
-                                    onCreate={handleCreateProduct}
-                                    onRefresh={refetchProducts}
-                                    getRecordDisplay={getProductDisplay}
-                                    nestedFieldsConfig={nestedFieldsConfig}
-                                    disabled={isTerminal}
-                                    canCreate
-                                />
-                            </div>
-
-                            {/* Manufacturers (Derived) */}
-                            <div>
-                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
-                                    <Factory className="w-4 h-4 text-muted-foreground" />
-                                    Manufacturers
-                                    <span className="text-xs font-normal text-muted-foreground ml-auto">(From Products)</span>
-                                </label>
-                                <div className="min-h-[42px] input w-full bg-muted/50 text-muted-foreground flex flex-wrap gap-2 py-2 h-auto">
-                                    {(() => {
-                                        const manufacturers = Array.from(new Set(
-                                            opportunity.products?.map(p => p.manufacturer?.name).filter(Boolean)
-                                        ))
-                                        return manufacturers.length > 0
-                                            ? manufacturers.map(m => (
-                                                <span key={m} className="inline-flex items-center px-2 py-1 rounded bg-background border border-border text-xs font-medium text-foreground">
-                                                    {m}
-                                                </span>
-                                            ))
-                                            : 'No manufacturers associated'
-                                    })()}
-                                </div>
-                            </div>
-
                             {/* Responsible */}
                             <div>
                                 <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
@@ -866,35 +777,14 @@ export default function OpportunityDetail() {
                         </div>
                     </div>
 
-                    {/* Files Section (Moved from Main) */}
-                    <FilesSection
-                        opportunityId={opportunity.id}
-                        onFileChange={() => setTimelineRefreshTrigger(prev => prev + 1)}
-                    />
-
-                    {/* Timeline Section (Moved back to Sidebar) */}
-                    <TimelineSection
-                        opportunityId={opportunity.id}
-                        refreshTrigger={timelineRefreshTrigger}
-                    />
+                    {/* Files Section */}
+                    <FilesSection opportunityId={opportunity.id} />
                 </div>
             </div>
 
-            {/* Lost Reason Modal */}
-            <LostReasonModal
-                isOpen={showLostModal}
-                onClose={() => setShowLostModal(false)}
-                onConfirm={handleMarkAsLost}
-                opportunityTitle={opportunity.title}
-            />
-
-            {/* Mark As Won Modal */}
-            <MarkAsWonModal
-                isOpen={showWonModal}
-                onClose={() => setShowWonModal(false)}
-                onConfirm={handleMarkAsWon}
-                opportunityTitle={opportunity.title}
-            />
+            {/* Modals */}
+            <LostReasonModal isOpen={showLostModal} onClose={() => setShowLostModal(false)} onConfirm={handleMarkAsLost} opportunityTitle={opportunity.title} />
+            <MarkAsWonModal isOpen={showWonModal} onClose={() => setShowWonModal(false)} onConfirm={handleMarkAsWon} opportunityTitle={opportunity.title} />
         </div>
     )
 }
