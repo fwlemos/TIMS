@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, ReactNode, useEffect, useMemo } from 'react'
 import { clsx } from 'clsx'
 import { Plus, Pencil } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { RelationalDropdown } from './RelationalDropdown'
 import { RelationalSelectedCard } from './RelationalSelectedCard'
 import { RelationalNestedForm } from './RelationalNestedForm'
@@ -195,15 +196,22 @@ export function RelationalField({
                             return (
                                 <span
                                     key={id}
-                                    className="inline-flex items-center gap-1.5 bg-background border rounded px-2 py-1 text-sm font-medium group"
+                                    className="inline-flex items-center gap-1.5 bg-background border rounded px-2 py-1 text-sm font-medium group relative"
                                 >
-                                    {record.primaryText}
+                                    {record.href ? (
+                                        <Link to={record.href} className="hover:underline z-10 relative">
+                                            {record.primaryText}
+                                        </Link>
+                                    ) : (
+                                        <span className="z-10 relative">{record.primaryText}</span>
+                                    )}
+
                                     {!disabled && canEdit && getRecordData && (
                                         <button
                                             ref={(el) => { if (el) editTriggerRefs.current.set(id, el) }}
                                             type="button"
                                             onClick={() => handleEditClick(id)}
-                                            className="text-muted-foreground hover:text-foreground transition-colors"
+                                            className="text-muted-foreground hover:text-foreground transition-opacity z-20 relative opacity-0 group-hover:opacity-100"
                                             title="Edit"
                                         >
                                             <span className="sr-only">Edit</span>
@@ -214,7 +222,7 @@ export function RelationalField({
                                         <button
                                             type="button"
                                             onClick={() => handleRemove(id)}
-                                            className="text-muted-foreground hover:text-destructive transition-colors"
+                                            className="text-muted-foreground hover:text-destructive transition-opacity z-20 relative opacity-0 group-hover:opacity-100"
                                             title="Remove"
                                         >
                                             <span className="sr-only">Remove</span>
@@ -241,6 +249,7 @@ export function RelationalField({
                                     onEdit={canEdit && getRecordData ? () => handleEditClick(id) : undefined}
                                     canEdit={canEdit && !!getRecordData}
                                     editButtonRef={(el) => { if (el) editTriggerRefs.current.set(id, el) }}
+                                    href={record.href}
                                 />
                             )
                         })}

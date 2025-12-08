@@ -92,6 +92,7 @@ export interface RelationalOption {
     primaryText: string
     secondaryText?: string | ReactNode
     data?: Record<string, unknown>
+    href?: string
 }
 
 export interface NestedFormState {

@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { X, Pencil } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import type { RelationalOption } from './types'
 
 interface RelationalSelectedCardProps {
@@ -10,6 +11,7 @@ interface RelationalSelectedCardProps {
     onEdit?: () => void
     canEdit?: boolean
     editButtonRef?: (el: HTMLButtonElement | null) => void
+    href?: string
 }
 
 export function RelationalSelectedCard({
@@ -20,26 +22,48 @@ export function RelationalSelectedCard({
     onEdit,
     canEdit = false,
     editButtonRef,
+    href,
 }: RelationalSelectedCardProps) {
+    const Content = (
+        <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate">{record.primaryText}</div>
+            {record.secondaryText && (
+                <div className="text-xs text-muted-foreground">{record.secondaryText}</div>
+            )}
+        </div>
+    )
+
     return (
-        <div className="card p-3 flex items-center gap-3 group">
+        <div className="card p-3 flex items-center gap-3 group relative">
+            {/* Clickable Area (if href) */}
+            {href && (
+                <Link
+                    to={href}
+                    className="absolute inset-0 z-0 rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                    <span className="sr-only">View {entityLabel}</span>
+                </Link>
+            )}
+
             {/* Icon */}
             {entityIcon && (
-                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <div className="relative z-10 flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center pointer-events-none">
                     {entityIcon}
                 </div>
             )}
 
-            {/* Content */}
-            <div className="flex-1 min-w-0">
+            {/* Content (Z-indexed to be above link if needed, but actually link cover is fine for card unless we want text selection)*/
+                /* Better UX: Make the whole card clickable EXCEPT buttons. */
+            }
+            <div className="relative z-10 flex-1 min-w-0 bg-transparent pointer-events-none">
                 <div className="text-sm font-medium truncate">{record.primaryText}</div>
                 {record.secondaryText && (
                     <div className="text-xs text-muted-foreground">{record.secondaryText}</div>
                 )}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {/* Actions (Z-indexed higher to be clickable) */}
+            <div className="relative z-20 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 {canEdit && onEdit && (
                     <button
                         ref={editButtonRef}

@@ -192,7 +192,8 @@ export function OpportunityRelated({
                         </span>
                     )}
                 </div>
-            )
+            ),
+            href: `/database/contact/${contact.id}`
         }
     }, [contacts])
 
@@ -214,7 +215,8 @@ export function OpportunityRelated({
         return {
             id: product.id,
             primaryText: product.name,
-            secondaryText: productWithManufacturer.manufacturer?.name || 'No Manufacturer'
+            secondaryText: productWithManufacturer.manufacturer?.name || 'No Manufacturer',
+            href: `/database/product/${product.id}`
         }
     }, [products])
 
@@ -294,9 +296,6 @@ export function OpportunityRelated({
                 <div>
                     <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
                         <User className="w-4 h-4 text-muted-foreground" /> Contact
-                        {opportunity.contact_id && (
-                            <Link to={`/database/contact/${opportunity.contact_id}`} className="ml-auto text-xs text-primary hover:underline">View</Link>
-                        )}
                         {savingField === 'contact' && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground ml-2" />}
                         {savedField === 'contact' && <Check className="w-3 h-3 text-success ml-2" />}
                     </label>
@@ -326,13 +325,19 @@ export function OpportunityRelated({
                 <div>
                     <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
                         <Building2 className="w-4 h-4 text-muted-foreground" /> Company <span className="text-xs font-normal text-muted-foreground">(From Contact)</span>
-                        {opportunity.contact?.company?.id && (
-                            <Link to={`/database/company/${opportunity.contact.company.id}`} className="ml-auto text-xs text-primary hover:underline">View</Link>
-                        )}
                     </label>
-                    <div className="input w-full bg-muted/50 text-muted-foreground flex items-center min-h-[42px]">
-                        {opportunity.contact?.company?.name || 'No company associated'}
-                    </div>
+                    {opportunity.contact?.company?.id ? (
+                        <Link
+                            to={`/database/company/${opportunity.contact.company.id}`}
+                            className="input w-full bg-muted/50 text-muted-foreground flex items-center min-h-[42px] hover:text-primary hover:border-primary/50 transition-colors"
+                        >
+                            {opportunity.contact.company.name}
+                        </Link>
+                    ) : (
+                        <div className="input w-full bg-muted/50 text-muted-foreground flex items-center min-h-[42px]">
+                            {opportunity.contact?.company?.name || 'No company associated'}
+                        </div>
+                    )}
                 </div>
 
                 {/* Products */}
@@ -374,8 +379,16 @@ export function OpportunityRelated({
                     <div className="bg-muted/50 rounded-lg p-3 min-h-[42px] border border-input text-sm">
                         {opportunity.products && opportunity.products.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
-                                {Array.from(new Set(opportunity.products.flatMap(p => p.manufacturer?.name).filter(Boolean))).map((name, i) => (
-                                    <span key={i} className="bg-background border rounded px-1.5 py-0.5 text-xs font-medium">{name}</span>
+                                {Array.from(new Set(opportunity.products.flatMap(p =>
+                                    p.manufacturer ? JSON.stringify({ id: p.manufacturer.id, name: p.manufacturer.name }) : []
+                                ))).map(json => JSON.parse(json)).map((m, i) => (
+                                    <Link
+                                        key={i}
+                                        to={`/database/manufacturer/${m.id}`}
+                                        className="bg-background border rounded px-1.5 py-0.5 text-xs font-medium hover:text-primary hover:border-primary/50 transition-colors"
+                                    >
+                                        {m.name}
+                                    </Link>
                                 ))}
                                 {opportunity.products.every(p => !p.manufacturer) && <span className="text-muted-foreground italic">No manufacturers found</span>}
                             </div>

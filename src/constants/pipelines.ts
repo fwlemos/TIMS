@@ -24,14 +24,14 @@ export const STAGE_FIELDS: StageFieldsConfig[] = [
             {
                 name: 'contact',
                 label: 'Contact',
-                type: 'contact', // Specialized type, falls back to display in simple views
+                type: 'display', // Set to display-only as these are managed in Related Entities
                 required: true,
                 getValue: (opp) => (opp as Record<string, unknown>).contact_id as string | null,
             },
             {
                 name: 'product',
                 label: 'Product',
-                type: 'products', // Specialized type
+                type: 'display', // Set to display-only as these are managed in Related Entities
                 required: true,
                 getValue: (opp) => {
                     const oppWithProducts = opp as Opportunity & { products?: Array<{ id: string }> }
