@@ -33,13 +33,17 @@ export function RelationalField({
     disabled = false,
     nestedFieldsConfig,
     mode = 'single',
+    displayMode = 'card',
+    onEdit,
+    getRecordData,
 }: ExtendedRelationalFieldProps) {
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const [nestedFormOpen, setNestedFormOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
     const [isSearching, setIsSearching] = useState(false)
-    const [isCreating, setIsCreating] = useState(false)
-    const [createError, setCreateError] = useState<string | null>(null)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [formError, setFormError] = useState<string | null>(null)
+    const [editingId, setEditingId] = useState<string | null>(null)
 
     const triggerRef = useRef<HTMLButtonElement>(null)
     const searchTimeoutRef = useRef<NodeJS.Timeout>()
@@ -104,51 +108,68 @@ export function RelationalField({
 
     const handleCreateNew = useCallback(() => {
         setDropdownOpen(false)
+        setEditingId(null)
         setNestedFormOpen(true)
-        setCreateError(null)
+        setFormError(null)
     }, [])
 
     const handleNestedFormSubmit = useCallback(async (data: Record<string, unknown>) => {
-        setIsCreating(true)
-        setCreateError(null)
+        setIsSubmitting(true)
+        setFormError(null)
 
         try {
-            const newId = await onCreate(data)
-            if (newId) {
+            if (editingId && onEdit) {
+                // Edit mode
+                await onEdit(editingId, data)
                 await onRefresh()
-
-                if (mode === 'multi') {
-                    const currentIds = Array.isArray(value) ? value : (value ? [value] : [])
-                    onChange([...currentIds, newId])
-                } else {
-                    onChange(newId)
-                }
-
                 setNestedFormOpen(false)
+                setEditingId(null)
             } else {
-                setCreateError('Failed to create - no ID returned')
+                // Create mode
+                const newId = await onCreate(data)
+                if (newId) {
+                    await onRefresh()
+
+                    if (mode === 'multi') {
+                        const currentIds = Array.isArray(value) ? value : (value ? [value] : [])
+                        onChange([...currentIds, newId])
+                    } else {
+                        onChange(newId)
+                    }
+
+                    setNestedFormOpen(false)
+                } else {
+                    setFormError('Failed to create - no ID returned')
+                }
             }
         } catch (err: unknown) {
-            console.error('Create error:', err)
-            // Handle Supabase errors which have code, message, details, hint
+            console.error(editingId ? 'Edit error:' : 'Create error:', err)
             const error = err as { message?: string; code?: string; hint?: string; details?: string }
-            const errorMsg = error.message || 'Failed to create'
+            const errorMsg = error.message || (editingId ? 'Failed to update' : 'Failed to create')
             const hint = error.hint ? ` (${error.hint})` : ''
             const code = error.code ? ` [${error.code}]` : ''
-            setCreateError(`${errorMsg}${hint}${code}`)
+            setFormError(`${errorMsg}${hint}${code}`)
         } finally {
-            setIsCreating(false)
+            setIsSubmitting(false)
         }
-    }, [onCreate, onRefresh, onChange, mode, value])
+    }, [editingId, onEdit, onCreate, onRefresh, onChange, mode, value])
 
     const handleNestedFormCancel = useCallback(() => {
         setNestedFormOpen(false)
-        setCreateError(null)
+        setFormError(null)
+        setEditingId(null)
     }, [])
 
-    const handleEdit = useCallback((_id?: string) => {
-        // Edit functionality handled by parent component
-    }, [])
+    const handleEditClick = useCallback((id: string) => {
+        if (!getRecordData) return
+        const recordData = getRecordData(id)
+        if (!recordData) return
+
+        setDropdownOpen(false)
+        setEditingId(id)
+        setNestedFormOpen(true)
+        setFormError(null)
+    }, [getRecordData])
 
     // Check if we can nest further
     const canNestDeeper = currentDepth < maxNestingDepth
@@ -162,22 +183,52 @@ export function RelationalField({
         <div className="space-y-2">
             {/* Selected Items List */}
             {selectedIds.length > 0 && (
-                <div className={clsx('flex flex-col gap-2', mode === 'multi' && 'mb-2')}>
-                    {selectedIds.map(id => {
-                        const record = getRecordDisplay(id)
-                        if (!record) return null
-                        return (
-                            <RelationalSelectedCard
-                                key={id}
-                                record={record}
-                                entityLabel={entityLabel}
-                                onRemove={() => handleRemove(id)}
-                                onEdit={canEdit ? () => handleEdit(id) : undefined}
-                                canEdit={canEdit}
-                            />
-                        )
-                    })}
-                </div>
+                displayMode === 'pill' ? (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                        {selectedIds.map(id => {
+                            const record = getRecordDisplay(id)
+                            if (!record) return null
+                            return (
+                                <span
+                                    key={id}
+                                    className="inline-flex items-center gap-1.5 bg-background border rounded px-2 py-1 text-sm font-medium group"
+                                >
+                                    {record.primaryText}
+                                    {!disabled && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemove(id)}
+                                            className="text-muted-foreground hover:text-destructive transition-colors"
+                                            title="Remove"
+                                        >
+                                            <span className="sr-only">Remove</span>
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </span>
+                            )
+                        })}
+                    </div>
+                ) : (
+                    <div className={clsx('flex flex-col gap-2', mode === 'multi' && 'mb-2')}>
+                        {selectedIds.map(id => {
+                            const record = getRecordDisplay(id)
+                            if (!record) return null
+                            return (
+                                <RelationalSelectedCard
+                                    key={id}
+                                    record={record}
+                                    entityLabel={entityLabel}
+                                    onRemove={() => handleRemove(id)}
+                                    onEdit={canEdit && getRecordData ? () => handleEditClick(id) : undefined}
+                                    canEdit={canEdit}
+                                />
+                            )
+                        })}
+                    </div>
+                )
             )}
 
             {/* Add Button (Trigger) */}
@@ -228,11 +279,13 @@ export function RelationalField({
                     formSchema={nestedFormSchema}
                     onSubmit={handleNestedFormSubmit}
                     onCancel={handleNestedFormCancel}
-                    isSubmitting={isCreating}
-                    error={createError}
+                    isSubmitting={isSubmitting}
+                    error={formError}
                     nestedFieldsConfig={nestedFieldsConfig}
                     currentDepth={currentDepth}
                     maxNestingDepth={maxNestingDepth}
+                    initialData={editingId && getRecordData ? getRecordData(editingId) : undefined}
+                    isEditing={!!editingId}
                 />
             )}
         </div>

@@ -79,7 +79,7 @@ export function StageBreadcrumb({
                 </div>
             )}
 
-            <div className="flex items-center gap-1 overflow-x-auto pb-2">
+            <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-hide">
                 {stages.map((stage, index) => {
                     const isCompleted = index < currentIndex
                     const isCurrent = stage.id === currentStageId
@@ -102,8 +102,8 @@ export function StageBreadcrumb({
                                 onClick={() => handleStageClick(stage, index)}
                                 disabled={!isClickable}
                                 className={clsx(
-                                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                                    'border-2 min-w-[120px] justify-center',
+                                    'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all',
+                                    'border-2 min-w-fit justify-center whitespace-nowrap',
                                     {
                                         // Completed stages
                                         'bg-success/10 border-success text-success': isCompleted && !isTerminalStage,

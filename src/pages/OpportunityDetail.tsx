@@ -102,9 +102,9 @@ export default function OpportunityDetail() {
     } = useOpportunityDetail(opportunityId)
 
     // Entity hooks for RelationalFields
-    const { contacts, createContact, refetch: refetchContacts } = useContacts()
+    const { contacts, createContact, updateContact: updateContactRecord, refetch: refetchContacts } = useContacts()
     const { companies, createCompany, refetch: refetchCompanies } = useCompanies()
-    const { products, createProduct, refetch: refetchProducts } = useProducts()
+    const { products, createProduct, updateProduct: updateProductRecord, refetch: refetchProducts } = useProducts()
     const { companies: manufacturers, createCompany: createManufacturer, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
     const { users } = useUsers()
 
@@ -502,6 +502,45 @@ export default function OpportunityDetail() {
         return result?.id || null
     }, [createManufacturer])
 
+    // Edit handlers
+    const handleEditContact = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+        await updateContactRecord(id, {
+            name: data.name as string,
+            email: (data.email as string) || null,
+            phone: (data.phone as string) || null,
+            company_id: (data.company_id as string) || null,
+        })
+    }, [updateContactRecord])
+
+    const handleEditProduct = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+        await updateProductRecord(id, {
+            name: data.name as string,
+            manufacturer_id: (data.manufacturer_id as string) || null,
+        })
+    }, [updateProductRecord])
+
+    // Record data getters for edit forms
+    const getContactRecordData = useCallback((id: string): Record<string, unknown> | undefined => {
+        const contact = contacts.find(c => c.id === id)
+        if (!contact) return undefined
+        const contactWithCompany = contact as typeof contact & { company?: { name: string } | null }
+        return {
+            name: contact.name,
+            email: contact.email || '',
+            phone: contact.phone || '',
+            company_id: contactWithCompany.company_id || '',
+        }
+    }, [contacts])
+
+    const getProductRecordData = useCallback((id: string): Record<string, unknown> | undefined => {
+        const product = products.find(p => p.id === id)
+        if (!product) return undefined
+        return {
+            name: product.name,
+            manufacturer_id: product.manufacturer_id || '',
+        }
+    }, [products])
+
     // Nested fields configuration
     const nestedFieldsConfig: NestedFieldsConfig = useMemo(() => ({
         company: {
@@ -731,7 +770,7 @@ export default function OpportunityDetail() {
                         <div className="space-y-5">
                             <div>
                                 <label className="block text-sm font-medium mb-1.5 flex items-center gap-2"><User className="w-4 h-4 text-muted-foreground" /> Contact</label>
-                                <RelationalField entityType="contact" entityLabel="Contact" displayFields={['name', 'email']} searchFields={['name', 'email', 'phone']} nestedFormSchema={contactFormSchema} value={opportunity.contact_id} onChange={handleContactChange} options={contactOptions} onSearch={setContactSearch} onCreate={handleCreateContact} onRefresh={refetchContacts} getRecordDisplay={getContactDisplay} nestedFieldsConfig={nestedFieldsConfig} disabled={isTerminal} canCreate />
+                                <RelationalField entityType="contact" entityLabel="Contact" displayFields={['name', 'email']} searchFields={['name', 'email', 'phone']} nestedFormSchema={contactFormSchema} value={opportunity.contact_id} onChange={handleContactChange} options={contactOptions} onSearch={setContactSearch} onCreate={handleCreateContact} onRefresh={refetchContacts} getRecordDisplay={getContactDisplay} nestedFieldsConfig={nestedFieldsConfig} disabled={isTerminal} canCreate canEdit onEdit={handleEditContact} getRecordData={getContactRecordData} />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1.5 flex items-center gap-2"><Building2 className="w-4 h-4 text-muted-foreground" /> Company <span className="text-xs font-normal text-muted-foreground ml-auto">(From Contact)</span></label>
@@ -739,7 +778,7 @@ export default function OpportunityDetail() {
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1.5 flex items-center gap-2"><Package className="w-4 h-4 text-muted-foreground" /> Products</label>
-                                <RelationalField entityType="product" entityLabel="Products" displayFields={['name', 'ncm']} searchFields={['name', 'ncm']} nestedFormSchema={productFormSchema} value={selectedProductIds} onChange={handleProductsChange} options={productOptions} onSearch={setProductSearch} onCreate={handleCreateProduct} onRefresh={refetchProducts} getRecordDisplay={getProductDisplay} nestedFieldsConfig={nestedFieldsConfig} disabled={isTerminal} canCreate mode="multi" />
+                                <RelationalField entityType="product" entityLabel="Products" displayFields={['name', 'ncm']} searchFields={['name', 'ncm']} nestedFormSchema={productFormSchema} value={selectedProductIds} onChange={handleProductsChange} options={productOptions} onSearch={setProductSearch} onCreate={handleCreateProduct} onRefresh={refetchProducts} getRecordDisplay={getProductDisplay} nestedFieldsConfig={nestedFieldsConfig} disabled={isTerminal} canCreate mode="multi" displayMode="pill" canEdit onEdit={handleEditProduct} getRecordData={getProductRecordData} />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1.5 flex items-center gap-2"><Factory className="w-4 h-4 text-muted-foreground" /> Manufacturers <span className="text-xs font-normal text-muted-foreground ml-auto">(From Products)</span></label>

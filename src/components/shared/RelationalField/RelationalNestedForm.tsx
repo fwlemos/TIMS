@@ -16,6 +16,9 @@ interface RelationalNestedFormProps {
     nestedFieldsConfig?: NestedFieldsConfig
     currentDepth?: number
     maxNestingDepth?: number
+    // Edit mode support
+    initialData?: Record<string, unknown>
+    isEditing?: boolean
 }
 
 export function RelationalNestedForm({
@@ -29,8 +32,10 @@ export function RelationalNestedForm({
     nestedFieldsConfig,
     currentDepth = 0,
     maxNestingDepth = 3,
+    initialData,
+    isEditing = false,
 }: RelationalNestedFormProps) {
-    const [formData, setFormData] = useState<Record<string, unknown>>({})
+    const [formData, setFormData] = useState<Record<string, unknown>>(initialData || {})
     const [errors, setErrors] = useState<Record<string, string>>({})
 
     const handleFieldChange = (name: string, value: unknown) => {
@@ -257,7 +262,7 @@ export function RelationalNestedForm({
                             {entityIcon}
                         </div>
                     )}
-                    <h4 className="font-medium text-sm">New {entityLabel}</h4>
+                    <h4 className="font-medium text-sm">{isEditing ? 'Edit' : 'New'} {entityLabel}</h4>
                 </div>
                 <button
                     type="button"
@@ -292,7 +297,7 @@ export function RelationalNestedForm({
                     {isSubmitting ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                        `Add ${entityLabel}`
+                        isEditing ? `Save ${entityLabel}` : `Add ${entityLabel}`
                     )}
                 </button>
             </div>

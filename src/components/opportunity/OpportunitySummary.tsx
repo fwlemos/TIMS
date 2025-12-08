@@ -48,8 +48,8 @@ export function OpportunitySummary({ opportunity }: OpportunitySummaryProps) {
                 </div>
             )}
 
-            {/* General Info Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* General Info - Stacked Rows */}
+            <div className="space-y-4">
                 <div className="bg-card border border-border rounded-xl p-4 space-y-3">
                     <h3 className="font-medium text-muted-foreground text-sm uppercase tracking-wider mb-2">General Info</h3>
 

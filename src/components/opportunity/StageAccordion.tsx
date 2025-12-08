@@ -6,7 +6,7 @@ import type { PipelineStage, Opportunity } from '@/lib/database.types'
 interface StageField {
     name: string
     label: string
-    type: 'display' | 'select' | 'text' | 'number' | 'date' | 'textarea' | 'file'
+    type: 'display' | 'select' | 'text' | 'number' | 'date' | 'textarea' | 'file' | 'contact' | 'products'
     required?: boolean
     options?: { value: string; label: string }[]
     getValue: (opportunity: Opportunity) => string | null | undefined
@@ -17,6 +17,18 @@ interface StageFieldsConfig {
     stageKey: string
     fields: StageField[]
 }
+
+// Lead Origin options
+const LEAD_ORIGIN_OPTIONS = [
+    { value: 'website', label: 'Website' },
+    { value: 'social_media', label: 'Social Media' },
+    { value: 'email', label: 'Email' },
+    { value: 'phone_call', label: 'Phone Call' },
+    { value: 'events', label: 'Events' },
+    { value: 'manufacturer', label: 'Manufacturer' },
+    { value: 'referral', label: 'Referral' },
+    { value: 'other', label: 'Other' },
+]
 
 // Stage fields configuration
 const STAGE_FIELDS: StageFieldsConfig[] = [
@@ -35,14 +47,19 @@ const STAGE_FIELDS: StageFieldsConfig[] = [
                 label: 'Product',
                 type: 'display',
                 required: true,
-                getValue: (opp) => (opp as Record<string, unknown>).product_id as string | null,
+                getValue: (opp) => {
+                    const oppWithProducts = opp as Opportunity & { products?: Array<{ id: string }> }
+                    return oppWithProducts.products?.map(p => p.id).join(',') || (opp as Record<string, unknown>).product_id as string | null
+                },
             },
             {
                 name: 'lead_origin',
                 label: 'Lead Origin',
-                type: 'display',
+                type: 'select',
                 required: true,
+                options: LEAD_ORIGIN_OPTIONS,
                 getValue: (opp) => opp.lead_origin,
+                placeholder: 'Select lead origin...',
             },
         ],
     },
@@ -119,7 +136,7 @@ interface StageAccordionProps {
         contact?: { id: string; name: string } | null
         company?: { id: string; name: string } | null
         product?: { id: string; name: string } | null
-        products?: Array<{ id: string; name: string }>
+        products?: Array<{ id: string; name: string; manufacturer?: { name: string } | null }>
     }
     stages: PipelineStage[]
     currentStageId: string | null
@@ -128,6 +145,12 @@ interface StageAccordionProps {
     savingField?: string | null
     savedField?: string | null
     onExpandChange?: (allExpanded: boolean, expandedCount: number) => void
+    // Contact selection
+    contacts?: Array<{ id: string; name: string; email?: string | null; company?: { name: string } | null }>
+    onContactChange?: (contactId: string | null) => Promise<void>
+    // Products selection
+    availableProducts?: Array<{ id: string; name: string; manufacturer?: { name: string } | null }>
+    onProductsChange?: (productIds: string[]) => Promise<void>
 }
 
 export interface StageAccordionHandle {
@@ -144,6 +167,10 @@ export const StageAccordion = forwardRef<StageAccordionHandle, StageAccordionPro
     savingField,
     savedField,
     onExpandChange,
+    contacts = [],
+    onContactChange,
+    availableProducts = [],
+    onProductsChange,
 }, ref) {
     // Track which sections are expanded (current stage is expanded by default)
     const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
@@ -392,6 +419,70 @@ export const StageAccordion = forwardRef<StageAccordionHandle, StageAccordionPro
                                                             </option>
                                                         ))}
                                                     </select>
+                                                )}
+
+                                                {field.type === 'contact' && (
+                                                    <select
+                                                        value={opportunity.contact_id || ''}
+                                                        disabled={disabled}
+                                                        onChange={(e) => {
+                                                            if (onContactChange) {
+                                                                onContactChange(e.target.value || null)
+                                                            }
+                                                        }}
+                                                        className="input w-full text-sm"
+                                                    >
+                                                        <option value="">{field.placeholder || 'Select contact...'}</option>
+                                                        {contacts.map(contact => (
+                                                            <option key={contact.id} value={contact.id}>
+                                                                {contact.name}{contact.company ? ` (${contact.company.name})` : ''}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+
+                                                {field.type === 'products' && (
+                                                    <div className="space-y-2 max-h-[200px] overflow-y-auto border border-input rounded-lg p-2">
+                                                        {availableProducts.length === 0 ? (
+                                                            <p className="text-sm text-muted-foreground italic p-2">No products available</p>
+                                                        ) : (
+                                                            availableProducts.map(product => {
+                                                                const isSelected = opportunity.products?.some(p => p.id === product.id) || false
+                                                                return (
+                                                                    <label
+                                                                        key={product.id}
+                                                                        className={clsx(
+                                                                            'flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors',
+                                                                            isSelected ? 'bg-primary/10' : 'hover:bg-muted'
+                                                                        )}
+                                                                    >
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={isSelected}
+                                                                            disabled={disabled}
+                                                                            onChange={(e) => {
+                                                                                if (onProductsChange) {
+                                                                                    const currentIds = opportunity.products?.map(p => p.id) || []
+                                                                                    if (e.target.checked) {
+                                                                                        onProductsChange([...currentIds, product.id])
+                                                                                    } else {
+                                                                                        onProductsChange(currentIds.filter(id => id !== product.id))
+                                                                                    }
+                                                                                }
+                                                                            }}
+                                                                            className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
+                                                                        />
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <span className="text-sm font-medium block truncate">{product.name}</span>
+                                                                            {product.manufacturer && (
+                                                                                <span className="text-xs text-muted-foreground truncate block">{product.manufacturer.name}</span>
+                                                                            )}
+                                                                        </div>
+                                                                    </label>
+                                                                )
+                                                            })
+                                                        )}
+                                                    </div>
                                                 )}
 
                                                 {field.type === 'number' && (

@@ -71,6 +71,13 @@ export interface RelationalFieldProps {
     placeholder?: string
     required?: boolean
     disabled?: boolean
+
+    // Display style for selected items
+    displayMode?: 'card' | 'pill'
+
+    // Edit support
+    onEdit?: (id: string, data: Record<string, unknown>) => Promise<void>
+    getRecordData?: (id: string) => Record<string, unknown> | undefined
 }
 
 export interface RelationalOption {

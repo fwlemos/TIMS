@@ -127,16 +127,16 @@ export function TimelineSection({ opportunityId, refreshTrigger = 0 }: TimelineS
 
     return (
         <div className="bg-card rounded-xl border border-border flex flex-col h-[600px]">
-            <div className="p-4 border-b border-border flex items-center justify-between">
+            <div className="p-4 border-b border-border flex flex-col gap-3">
                 <h3 className="font-semibold text-lg flex items-center gap-2">
                     <History className="w-5 h-5" />
                     Timeline
                 </h3>
-                <div className="flex bg-muted rounded-lg p-1">
+                <div className="flex bg-muted rounded-lg p-1 w-full">
                     <button
                         onClick={() => setFilter('all')}
                         className={clsx(
-                            'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                            'flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors text-center',
                             filter === 'all' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
                         )}
                     >
@@ -145,7 +145,7 @@ export function TimelineSection({ opportunityId, refreshTrigger = 0 }: TimelineS
                     <button
                         onClick={() => setFilter('history')}
                         className={clsx(
-                            'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                            'flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors text-center',
                             filter === 'history' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
                         )}
                     >
@@ -154,7 +154,7 @@ export function TimelineSection({ opportunityId, refreshTrigger = 0 }: TimelineS
                     <button
                         onClick={() => setFilter('activity')}
                         className={clsx(
-                            'px-3 py-1 text-xs font-medium rounded-md transition-colors',
+                            'flex-1 px-2 py-1 text-xs font-medium rounded-md transition-colors text-center',
                             filter === 'activity' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
                         )}
                     >
