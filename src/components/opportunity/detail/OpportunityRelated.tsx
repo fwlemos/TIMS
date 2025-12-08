@@ -67,15 +67,7 @@ export function OpportunityRelated({
     }, [updateContact])
 
     const handleCompanyChange = useCallback((value: string | string[] | null) => {
-        // This is not typically manually changed if linked to contact, but IF we want to allow it:
-        // Actually the current OpportunityDetail "Company" display is read-only from contact?
-        // Checking original code: It has a disabled input showing opportunity.contact?.company?.name
-        // So this handler might not be needed for direct company assignment if the logic is strict.
-        // BUT the RelationalField logic in original code was: 
-        // label: Company (From Contact) -> Input is valid.
-        // So we keep the helper but maybe not expose a RelationalField for it if it's purely derived.
-        // Wait, looking at lines 767-775: It's just a display div. "No company associated".
-        // So NO RelationalField for Company directly on Opportunity.
+        // This is not typically manually changed if linked to contact
     }, [])
 
     const handleProductsChange = useCallback(async (value: string | string[] | null) => {
@@ -174,6 +166,8 @@ export function OpportunityRelated({
     )
 
     // Display getters
+    const opportunityId = opportunity.id
+
     const getContactDisplay = useCallback((id: string): RelationalOption | undefined => {
         const contact = contacts.find(c => c.id === id)
         if (!contact) return undefined
@@ -193,9 +187,9 @@ export function OpportunityRelated({
                     )}
                 </div>
             ),
-            href: `/database/contact/${contact.id}`
+            href: `/database/contact/${contact.id}?returnTo=/crm/opportunities/${opportunityId}`
         }
-    }, [contacts])
+    }, [contacts, opportunityId])
 
     const getCompanyDisplay = useCallback((id: string): RelationalOption | undefined => {
         const company = companies.find(c => c.id === id)
@@ -216,9 +210,9 @@ export function OpportunityRelated({
             id: product.id,
             primaryText: product.name,
             secondaryText: productWithManufacturer.manufacturer?.name || 'No Manufacturer',
-            href: `/database/product/${product.id}`
+            href: `/database/product/${product.id}?returnTo=/crm/opportunities/${opportunityId}`
         }
-    }, [products])
+    }, [products, opportunityId])
 
     const getManufacturerDisplay = useCallback((id: string): RelationalOption | undefined => {
         const manufacturer = manufacturers.find(m => m.id === id)
@@ -328,7 +322,7 @@ export function OpportunityRelated({
                     </label>
                     {opportunity.contact?.company?.id ? (
                         <Link
-                            to={`/database/company/${opportunity.contact.company.id}`}
+                            to={`/database/company/${opportunity.contact.company.id}?returnTo=/crm/opportunities/${opportunity.id}`}
                             className="input w-full bg-muted/50 text-muted-foreground flex items-center min-h-[42px] hover:text-primary hover:border-primary/50 transition-colors"
                         >
                             {opportunity.contact.company.name}
@@ -384,7 +378,7 @@ export function OpportunityRelated({
                                 ))).map(json => JSON.parse(json)).map((m, i) => (
                                     <Link
                                         key={i}
-                                        to={`/database/manufacturer/${m.id}`}
+                                        to={`/database/manufacturer/${m.id}?returnTo=/crm/opportunities/${opportunity.id}`}
                                         className="bg-background border rounded px-1.5 py-0.5 text-xs font-medium hover:text-primary hover:border-primary/50 transition-colors"
                                     >
                                         {m.name}

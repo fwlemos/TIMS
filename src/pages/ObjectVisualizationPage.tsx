@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ObjectLayout } from '../components/layout/ObjectLayout';
 import { Button } from '../components/shared/Button';
 import { useObjectData } from '../hooks/useObjectData';
@@ -18,6 +18,8 @@ import { logger } from '@/utils/logger';
 export default function ObjectVisualizationPage() {
     const { objectType, id } = useParams<{ objectType: string; id: string }>();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const returnTo = searchParams.get('returnTo');
     const { toast } = useToast();
 
     const { data, loading, error, update } = useObjectData(objectType, id);
@@ -115,6 +117,19 @@ export default function ObjectVisualizationPage() {
     const header = (
         <div className="flex items-center justify-between py-4 px-6 bg-card border-b">
             <div className="flex items-center gap-2 text-sm">
+                {returnTo && (
+                    <>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mr-2 h-8 px-2 text-muted-foreground"
+                            onClick={() => navigate(returnTo)}
+                        >
+                            ← Back to Opportunity
+                        </Button>
+                        <span className="text-muted-foreground">|</span>
+                    </>
+                )}
                 <span className="text-muted-foreground capitalize cursor-pointer hover:underline" onClick={() => navigate('/database')}>
                     Database
                 </span>
