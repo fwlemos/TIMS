@@ -103,9 +103,9 @@ export default function OpportunityDetail() {
 
     // Entity hooks for RelationalFields
     const { contacts, createContact, updateContact: updateContactRecord, refetch: refetchContacts } = useContacts()
-    const { companies, createCompany, refetch: refetchCompanies } = useCompanies()
+    const { companies, createCompany, updateCompany: updateCompanyRecord, refetch: refetchCompanies } = useCompanies()
     const { products, createProduct, updateProduct: updateProductRecord, refetch: refetchProducts } = useProducts()
-    const { companies: manufacturers, createCompany: createManufacturer, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
+    const { companies: manufacturers, createCompany: createManufacturer, updateCompany: updateManufacturerRecord, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
     const { users } = useUsers()
 
     // Search states
@@ -541,6 +541,52 @@ export default function OpportunityDetail() {
         }
     }, [products])
 
+    // Edit handlers for nested entities (Company and Manufacturer)
+    const handleEditCompany = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+        await updateCompanyRecord(id, {
+            name: data.name as string,
+            tax_id: (data.tax_id as string) || null,
+            address: (data.address as string) || null,
+            phone: (data.phone as string) || null,
+            website: (data.website as string) || null,
+        })
+    }, [updateCompanyRecord])
+
+    const handleEditManufacturer = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+        await updateManufacturerRecord(id, {
+            name: data.name as string,
+            tax_id: (data.tax_id as string) || null,
+            address: (data.address as string) || null,
+            phone: (data.phone as string) || null,
+            website: (data.website as string) || null,
+        })
+    }, [updateManufacturerRecord])
+
+    // Record data getters for nested entities
+    const getCompanyRecordData = useCallback((id: string): Record<string, unknown> | undefined => {
+        const company = companies.find(c => c.id === id)
+        if (!company) return undefined
+        return {
+            name: company.name,
+            tax_id: company.tax_id || '',
+            address: company.address || '',
+            phone: company.phone || '',
+            website: company.website || '',
+        }
+    }, [companies])
+
+    const getManufacturerRecordData = useCallback((id: string): Record<string, unknown> | undefined => {
+        const manufacturer = manufacturers.find(m => m.id === id)
+        if (!manufacturer) return undefined
+        return {
+            name: manufacturer.name,
+            tax_id: manufacturer.tax_id || '',
+            address: manufacturer.address || '',
+            phone: manufacturer.phone || '',
+            website: manufacturer.website || '',
+        }
+    }, [manufacturers])
+
     // Nested fields configuration
     const nestedFieldsConfig: NestedFieldsConfig = useMemo(() => ({
         company: {
@@ -549,6 +595,9 @@ export default function OpportunityDetail() {
             onCreate: handleCreateCompany,
             onRefresh: refetchCompanies,
             getRecordDisplay: getCompanyDisplay,
+            canEdit: true,
+            onEdit: handleEditCompany,
+            getRecordData: getCompanyRecordData,
         },
         manufacturer: {
             options: manufacturerOptions,
@@ -556,10 +605,13 @@ export default function OpportunityDetail() {
             onCreate: handleCreateManufacturer,
             onRefresh: refetchManufacturers,
             getRecordDisplay: getManufacturerDisplay,
+            canEdit: true,
+            onEdit: handleEditManufacturer,
+            getRecordData: getManufacturerRecordData,
         },
     }), [
-        companyOptions, handleCreateCompany, refetchCompanies, getCompanyDisplay,
-        manufacturerOptions, handleCreateManufacturer, refetchManufacturers, getManufacturerDisplay
+        companyOptions, handleCreateCompany, refetchCompanies, getCompanyDisplay, handleEditCompany, getCompanyRecordData,
+        manufacturerOptions, handleCreateManufacturer, refetchManufacturers, getManufacturerDisplay, handleEditManufacturer, getManufacturerRecordData
     ])
 
     // Loading state

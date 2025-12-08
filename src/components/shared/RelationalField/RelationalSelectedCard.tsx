@@ -9,6 +9,7 @@ interface RelationalSelectedCardProps {
     onRemove: () => void
     onEdit?: () => void
     canEdit?: boolean
+    editButtonRef?: (el: HTMLButtonElement | null) => void
 }
 
 export function RelationalSelectedCard({
@@ -18,6 +19,7 @@ export function RelationalSelectedCard({
     onRemove,
     onEdit,
     canEdit = false,
+    editButtonRef,
 }: RelationalSelectedCardProps) {
     return (
         <div className="card p-3 flex items-center gap-3 group">
@@ -40,6 +42,7 @@ export function RelationalSelectedCard({
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 {canEdit && onEdit && (
                     <button
+                        ref={editButtonRef}
                         type="button"
                         onClick={onEdit}
                         className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"

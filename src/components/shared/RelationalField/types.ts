@@ -29,6 +29,10 @@ export interface NestedFieldConfig {
     onCreate: (data: Record<string, unknown>) => Promise<string | null>
     onRefresh: () => void
     getRecordDisplay: (id: string) => RelationalOption | undefined
+    // Edit support for nested fields
+    canEdit?: boolean
+    onEdit?: (id: string, data: Record<string, unknown>) => Promise<void>
+    getRecordData?: (id: string) => Record<string, unknown> | undefined
 }
 
 // Map of entity type to its field configuration
@@ -78,6 +82,9 @@ export interface RelationalFieldProps {
     // Edit support
     onEdit?: (id: string, data: Record<string, unknown>) => Promise<void>
     getRecordData?: (id: string) => Record<string, unknown> | undefined
+
+    // Nested form behavior
+    forceInlineNested?: boolean
 }
 
 export interface RelationalOption {

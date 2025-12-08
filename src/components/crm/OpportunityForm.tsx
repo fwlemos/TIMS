@@ -102,10 +102,10 @@ const productFormSchema: FormField[] = [
 ]
 
 export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps) {
-    const { contacts, createContact, refetch: refetchContacts } = useContacts()
-    const { companies, createCompany, refetch: refetchCompanies } = useCompanies()
-    const { products, createProduct, refetch: refetchProducts } = useProducts()
-    const { companies: manufacturers, createCompany: createManufacturer, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
+    const { contacts, createContact, updateContact, refetch: refetchContacts } = useContacts()
+    const { companies, createCompany, updateCompany, refetch: refetchCompanies } = useCompanies()
+    const { products, createProduct, updateProduct, refetch: refetchProducts } = useProducts()
+    const { companies: manufacturers, createCompany: createManufacturer, updateCompany: updateManufacturer, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
     const { users, currentUser, loading: usersLoading } = useUsers()
 
     // Selected IDs state
@@ -337,6 +337,94 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
         return result?.id || null
     }, [createManufacturer])
 
+    // Edit handlers
+    const handleEditContact = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+        await updateContact(id, {
+            name: data.name as string,
+            email: (data.email as string) || null,
+            phone: (data.phone as string) || null,
+            company_id: (data.company_id as string) || null,
+            observation: (data.observation as string) || null,
+        })
+    }, [updateContact])
+
+    const handleEditProduct = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+        await updateProduct(id, {
+            name: data.name as string,
+            manufacturer_id: (data.manufacturer_id as string) || null,
+            description: (data.technical_description as string) || null,
+            ncm: (data.ncm as string) || null,
+        })
+    }, [updateProduct])
+
+    const handleEditCompany = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+        await updateCompany(id, {
+            name: data.name as string,
+            tax_id: (data.tax_id as string) || null,
+            address: (data.address as string) || null,
+            phone: (data.phone as string) || null,
+            website: (data.website as string) || null,
+        })
+    }, [updateCompany])
+
+    const handleEditManufacturer = useCallback(async (id: string, data: Record<string, unknown>): Promise<void> => {
+        await updateManufacturer(id, {
+            name: data.name as string,
+            tax_id: (data.tax_id as string) || null,
+            address: (data.address as string) || null,
+            phone: (data.phone as string) || null,
+            website: (data.website as string) || null,
+        })
+    }, [updateManufacturer])
+
+    // Record data getters
+    const getContactRecordData = useCallback((id: string): Record<string, unknown> | undefined => {
+        const contact = contacts.find(c => c.id === id)
+        if (!contact) return undefined
+        return {
+            name: contact.name,
+            email: contact.email || '',
+            phone: contact.phone || '',
+            company_id: contact.company_id || '',
+            observation: contact.observation || '',
+        }
+    }, [contacts])
+
+    const getProductRecordData = useCallback((id: string): Record<string, unknown> | undefined => {
+        const product = products.find(p => p.id === id)
+        if (!product) return undefined
+        return {
+            name: product.name,
+            manufacturer_id: product.manufacturer_id || '',
+            technical_description: product.description || '',
+            ncm: product.ncm || '',
+        }
+    }, [products])
+
+    const getCompanyRecordData = useCallback((id: string): Record<string, unknown> | undefined => {
+        const company = companies.find(c => c.id === id)
+        if (!company) return undefined
+        return {
+            name: company.name,
+            tax_id: company.tax_id || '',
+            address: company.address || '',
+            phone: company.phone || '',
+            website: company.website || '',
+        }
+    }, [companies])
+
+    const getManufacturerRecordData = useCallback((id: string): Record<string, unknown> | undefined => {
+        const manufacturer = manufacturers.find(m => m.id === id)
+        if (!manufacturer) return undefined
+        return {
+            name: manufacturer.name,
+            tax_id: manufacturer.tax_id || '',
+            address: manufacturer.address || '',
+            phone: manufacturer.phone || '',
+            website: manufacturer.website || '',
+        }
+    }, [manufacturers])
+
     // Nested fields configuration for passing to RelationalField
     const nestedFieldsConfig: NestedFieldsConfig = useMemo(() => ({
         company: {
@@ -345,6 +433,9 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
             onCreate: handleCreateCompany,
             onRefresh: refetchCompanies,
             getRecordDisplay: getCompanyDisplay,
+            canEdit: true,
+            onEdit: handleEditCompany,
+            getRecordData: getCompanyRecordData,
         },
         manufacturer: {
             options: manufacturerOptions,
@@ -352,10 +443,13 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
             onCreate: handleCreateManufacturer,
             onRefresh: refetchManufacturers,
             getRecordDisplay: getManufacturerDisplay,
+            canEdit: true,
+            onEdit: handleEditManufacturer,
+            getRecordData: getManufacturerRecordData,
         },
     }), [
-        companyOptions, handleCreateCompany, refetchCompanies, getCompanyDisplay,
-        manufacturerOptions, handleCreateManufacturer, refetchManufacturers, getManufacturerDisplay
+        companyOptions, handleCreateCompany, refetchCompanies, getCompanyDisplay, handleEditCompany, getCompanyRecordData,
+        manufacturerOptions, handleCreateManufacturer, refetchManufacturers, getManufacturerDisplay, handleEditManufacturer, getManufacturerRecordData
     ])
 
     const onFormError = (errors: Record<string, unknown>) => {
@@ -424,6 +518,9 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                     onRefresh={refetchContacts}
                     getRecordDisplay={getContactDisplay}
                     canCreate
+                    canEdit
+                    onEdit={handleEditContact}
+                    getRecordData={getContactRecordData}
                     nestedFieldsConfig={nestedFieldsConfig}
                 />
                 {contactError && (
@@ -456,6 +553,9 @@ export function OpportunityForm({ opportunity, onSubmit }: OpportunityFormProps)
                     onRefresh={refetchProducts}
                     getRecordDisplay={getProductDisplay}
                     canCreate
+                    canEdit
+                    onEdit={handleEditProduct}
+                    getRecordData={getProductRecordData}
                     nestedFieldsConfig={nestedFieldsConfig}
                 />
                 {productError && (

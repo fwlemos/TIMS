@@ -19,6 +19,11 @@ interface RelationalNestedFormProps {
     // Edit mode support
     initialData?: Record<string, unknown>
     isEditing?: boolean
+    // Display options for floating panel mode
+    hideHeader?: boolean
+    hideWrapper?: boolean
+    // Force nested fields to use inline forms
+    forceInlineNested?: boolean
 }
 
 export function RelationalNestedForm({
@@ -34,6 +39,9 @@ export function RelationalNestedForm({
     maxNestingDepth = 3,
     initialData,
     isEditing = false,
+    hideHeader = false,
+    hideWrapper = false,
+    forceInlineNested = false,
 }: RelationalNestedFormProps) {
     const [formData, setFormData] = useState<Record<string, unknown>>(initialData || {})
     const [errors, setErrors] = useState<Record<string, string>>({})
@@ -106,6 +114,10 @@ export function RelationalNestedForm({
                             getRecordDisplay={fieldConfig.getRecordDisplay}
                             canCreate={true}
                             nestedFieldsConfig={nestedFieldsConfig}
+                            forceInlineNested={forceInlineNested}
+                            canEdit={fieldConfig.canEdit}
+                            onEdit={fieldConfig.onEdit}
+                            getRecordData={fieldConfig.getRecordData}
                         />
                         {fieldError && (
                             <p className="text-destructive text-xs mt-1">{fieldError}</p>
@@ -244,36 +256,8 @@ export function RelationalNestedForm({
         }
     }
 
-    return (
-        <div className="relative pl-4 border-l-3 border-primary/30 bg-accent/30 rounded-r-lg py-4 pr-4 my-3 animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        className="p-1 hover:bg-accent rounded transition-colors"
-                        title="Cancel"
-                    >
-                        <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    {entityIcon && (
-                        <div className="w-6 h-6 flex items-center justify-center text-primary">
-                            {entityIcon}
-                        </div>
-                    )}
-                    <h4 className="font-medium text-sm">{isEditing ? 'Edit' : 'New'} {entityLabel}</h4>
-                </div>
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="p-1 hover:bg-accent rounded transition-colors"
-                    title="Cancel"
-                >
-                    <X className="w-4 h-4" />
-                </button>
-            </div>
-
+    const formContent = (
+        <>
             {/* Form Fields */}
             <div className="space-y-4">
                 {formSchema.map(renderField)}
@@ -301,6 +285,47 @@ export function RelationalNestedForm({
                     )}
                 </button>
             </div>
+        </>
+    )
+
+    // When used inside FloatingFormPanel, render without wrapper
+    if (hideWrapper) {
+        return formContent
+    }
+
+    return (
+        <div className="relative pl-4 border-l-3 border-primary/30 bg-accent/30 rounded-r-lg py-4 pr-4 my-3 animate-fade-in">
+            {/* Header */}
+            {!hideHeader && (
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="p-1 hover:bg-accent rounded transition-colors"
+                            title="Cancel"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        {entityIcon && (
+                            <div className="w-6 h-6 flex items-center justify-center text-primary">
+                                {entityIcon}
+                            </div>
+                        )}
+                        <h4 className="font-medium text-sm">{isEditing ? 'Edit' : 'New'} {entityLabel}</h4>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="p-1 hover:bg-accent rounded transition-colors"
+                        title="Cancel"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
+            {formContent}
         </div>
     )
 }

@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback, ReactNode, useEffect, useMemo } from 'react'
 import { clsx } from 'clsx'
-import { Plus } from 'lucide-react'
+import { Plus, Pencil } from 'lucide-react'
 import { RelationalDropdown } from './RelationalDropdown'
 import { RelationalSelectedCard } from './RelationalSelectedCard'
 import { RelationalNestedForm } from './RelationalNestedForm'
+import { FloatingFormPanel } from './FloatingFormPanel'
 import type { RelationalFieldProps, RelationalOption, NestedFieldsConfig } from './types'
 
 const DEFAULT_MAX_DEPTH = 3
@@ -36,6 +37,7 @@ export function RelationalField({
     displayMode = 'card',
     onEdit,
     getRecordData,
+    forceInlineNested = false,
 }: ExtendedRelationalFieldProps) {
     const [dropdownOpen, setDropdownOpen] = useState(false)
     const [nestedFormOpen, setNestedFormOpen] = useState(false)
@@ -46,6 +48,8 @@ export function RelationalField({
     const [editingId, setEditingId] = useState<string | null>(null)
 
     const triggerRef = useRef<HTMLButtonElement>(null)
+    const formTriggerRef = useRef<HTMLButtonElement>(null)
+    const editTriggerRefs = useRef<Map<string, HTMLButtonElement>>(new Map())
     const searchTimeoutRef = useRef<NodeJS.Timeout>()
 
     // Normalize value to array for multi-mode consistent handling
@@ -194,6 +198,18 @@ export function RelationalField({
                                     className="inline-flex items-center gap-1.5 bg-background border rounded px-2 py-1 text-sm font-medium group"
                                 >
                                     {record.primaryText}
+                                    {!disabled && canEdit && getRecordData && (
+                                        <button
+                                            ref={(el) => { if (el) editTriggerRefs.current.set(id, el) }}
+                                            type="button"
+                                            onClick={() => handleEditClick(id)}
+                                            className="text-muted-foreground hover:text-foreground transition-colors"
+                                            title="Edit"
+                                        >
+                                            <span className="sr-only">Edit</span>
+                                            <Pencil className="w-3 h-3" />
+                                        </button>
+                                    )}
                                     {!disabled && (
                                         <button
                                             type="button"
@@ -223,7 +239,8 @@ export function RelationalField({
                                     entityLabel={entityLabel}
                                     onRemove={() => handleRemove(id)}
                                     onEdit={canEdit && getRecordData ? () => handleEditClick(id) : undefined}
-                                    canEdit={canEdit}
+                                    canEdit={canEdit && !!getRecordData}
+                                    editButtonRef={(el) => { if (el) editTriggerRefs.current.set(id, el) }}
                                 />
                             )
                         })}
@@ -233,10 +250,15 @@ export function RelationalField({
 
             {/* Add Button (Trigger) */}
             {/* Show if single mode and nothing selected, OR if multi mode (always allowed to add more) */}
-            {((mode === 'single' && selectedIds.length === 0) || mode === 'multi') && !nestedFormOpen && (
+            {((mode === 'single' && selectedIds.length === 0) || mode === 'multi') && (
                 <div className="relative">
                     <button
-                        ref={triggerRef}
+                        ref={(el) => {
+                            if (el) {
+                                (triggerRef as React.MutableRefObject<HTMLButtonElement>).current = el
+                                    ; (formTriggerRef as React.MutableRefObject<HTMLButtonElement>).current = el
+                            }
+                        }}
                         type="button"
                         onClick={() => !disabled && setDropdownOpen(true)}
                         disabled={disabled}
@@ -272,21 +294,50 @@ export function RelationalField({
                 </div>
             )}
 
-            {/* Nested Form */}
-            {nestedFormOpen && (
-                <RelationalNestedForm
-                    entityLabel={entityLabel}
-                    formSchema={nestedFormSchema}
-                    onSubmit={handleNestedFormSubmit}
-                    onCancel={handleNestedFormCancel}
-                    isSubmitting={isSubmitting}
-                    error={formError}
-                    nestedFieldsConfig={nestedFieldsConfig}
-                    currentDepth={currentDepth}
-                    maxNestingDepth={maxNestingDepth}
-                    initialData={editingId && getRecordData ? getRecordData(editingId) : undefined}
-                    isEditing={!!editingId}
-                />
+            {/* Form: Either Floating Panel or Inline Nested */}
+            {forceInlineNested ? (
+                // Inline Nested Form (when inside a floating panel already)
+                nestedFormOpen && (
+                    <RelationalNestedForm
+                        entityLabel={entityLabel}
+                        formSchema={nestedFormSchema}
+                        onSubmit={handleNestedFormSubmit}
+                        onCancel={handleNestedFormCancel}
+                        isSubmitting={isSubmitting}
+                        error={formError}
+                        nestedFieldsConfig={nestedFieldsConfig}
+                        currentDepth={currentDepth}
+                        maxNestingDepth={maxNestingDepth}
+                        initialData={editingId && getRecordData ? getRecordData(editingId) : undefined}
+                        isEditing={!!editingId}
+                        forceInlineNested={true}
+                    />
+                )
+            ) : (
+                // Floating Form Panel (default behavior)
+                <FloatingFormPanel
+                    isOpen={nestedFormOpen}
+                    onClose={handleNestedFormCancel}
+                    triggerRef={editingId ? { current: editTriggerRefs.current.get(editingId) || null } : formTriggerRef}
+                    title={editingId ? `Edit ${entityLabel}` : `New ${entityLabel}`}
+                >
+                    <RelationalNestedForm
+                        entityLabel={entityLabel}
+                        formSchema={nestedFormSchema}
+                        onSubmit={handleNestedFormSubmit}
+                        onCancel={handleNestedFormCancel}
+                        isSubmitting={isSubmitting}
+                        error={formError}
+                        nestedFieldsConfig={nestedFieldsConfig}
+                        currentDepth={currentDepth}
+                        maxNestingDepth={maxNestingDepth}
+                        initialData={editingId && getRecordData ? getRecordData(editingId) : undefined}
+                        isEditing={!!editingId}
+                        hideHeader
+                        hideWrapper
+                        forceInlineNested={true}
+                    />
+                </FloatingFormPanel>
             )}
         </div>
     )
