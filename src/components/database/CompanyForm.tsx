@@ -85,6 +85,7 @@ export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
             website: data.website || null,
             observation: data.observation || null,
             contact_ids: selectedContactIds,
+            type: 'company',
         }
         await onSubmit(companyData as CompanySubmitData)
     }

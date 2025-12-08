@@ -272,7 +272,7 @@
   - [x] 6.13 Create `src/components/shared/FAB.tsx` floating action button
   - [x] 6.14 Wire FAB to open new opportunity form
   - [x] 6.15 Implement Lead Origin dropdown (Website, Social Media, Email, Phone Call, Events, Manufacturer)
-  - [ ] 6.16 Implement Office dropdown (TIA, TIC)
+  - [x] 6.16 Implement Office dropdown (Brazil, USA)
   - [x] 6.17 Create `src/components/crm/ListView.tsx` for table view of opportunities
   - [x] 6.18 Implement Lost status with required justification modal
   - [x] 6.19 Log all opportunity changes to opportunity_history table
@@ -336,7 +336,7 @@
 - [/] 10.0 Final Integration, Testing & Security Audit
   
   **Pre-Testing: Complete Pending Items**
-  - [ ] 10.1 Complete 6.16: Implement Office dropdown (TIA, TIC) in OpportunityForm - SKIPPED
+  - [x] 10.1 Complete 6.16: Implement Office dropdown (Brazil, USA)
   - [ ] 10.2 Complete 9.11: Add upload progress percentage (optional enhancement) - SKIPPED
   
   **Functional Testing**
@@ -380,5 +380,4 @@
   - [x] 10.38 Remove console.log statements ✅
   - [x] 10.39 Run `npm run build` without errors ✅
   - [x] 10.40 Update README with setup instructions ✅
-  - [ ] 10.41 Commit and push final changes
 

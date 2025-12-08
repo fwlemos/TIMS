@@ -8,6 +8,10 @@ export interface OpportunityDetailWithRelations extends Opportunity {
         name: string
         email?: string | null
         phone?: string | null
+        company?: {
+            id: string
+            name: string
+        } | null
     } | null
     company?: {
         id: string
@@ -20,14 +24,20 @@ export interface OpportunityDetailWithRelations extends Opportunity {
         id: string
         name: string
         ncm?: string | null
-        manufacturer_id?: string | null
+        manufacturer?: {
+            id: string
+            name: string
+        } | null
     } | null
     // New: multiple products via junction table
     products?: Array<{
         id: string
         name: string
         ncm?: string | null
-        manufacturer_id?: string | null
+        manufacturer?: {
+            id: string
+            name: string
+        } | null
     }>
     stage?: PipelineStage | null
 }
@@ -68,9 +78,9 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
                 .from('opportunities')
                 .select(`
                     *,
-                    contact:contacts(id, name, email, phone),
+                    contact:contacts(id, name, email, phone, company:companies(id, name)),
                     company:companies(id, name, address, phone),
-                    product:products(id, name, ncm, manufacturer_id),
+                    product:products(id, name, ncm, manufacturer:companies(id, name)),
                     stage:pipeline_stages(*)
                 `)
                 .eq('id', opportunityId)
@@ -80,7 +90,7 @@ export function useOpportunityDetail(opportunityId: string | undefined) {
             supabase
                 .from('opportunity_products')
                 .select(`
-                    product:products(id, name, ncm, manufacturer_id)
+                    product:products(id, name, ncm, manufacturer:companies(id, name))
                 `)
                 .eq('opportunity_id', opportunityId)
         ])

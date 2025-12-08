@@ -101,75 +101,21 @@
 
 ---
 
-- [ ] 5.0 Related Entities Panel (User preferred original implementation - reverted)
-  - [ ] 5.1 Create `RelatedEntitiesPanel.tsx` as right sidebar component
-  - [ ] 5.2 Display Contact section: name, email, phone + Edit/Remove buttons
-  - [ ] 5.3 Display Company section: name, address, phone + Edit/Remove buttons
-  - [ ] 5.4 Display Product section: name, NCM, manufacturer + Edit/Remove buttons
-  - [ ] 5.5 Display Manufacturer section: name, contract validity + Edit/Remove buttons
-  - [ ] 5.6 Implement Edit button to open inline edit form or modal
-  - [ ] 5.7 Implement Remove button with confirmation dialog
-  - [ ] 5.8 Warn user if removing required entity affects stage requirements
-  - [ ] 5.9 Add "Change" option to associate different entity
-  - [ ] 5.10 Allow Company and Manufacturer to be optional (null)
+- [x] 5.0 Related Entities Panel (Implemented as Sidebar with inline RelationalField components)
+  - [x] 5.1 Create `RelatedEntitiesPanel.tsx` as right sidebar component (Integrated directly into `OpportunityDetail.tsx` using `RelationalField`)
+  - [x] 5.2 Display Contact section: name, email, phone + Edit/Remove buttons
+  - [x] 5.3 Display Company section: name, address, phone + Edit/Remove buttons
+  - [x] 5.4 Display Product section: name, NCM, manufacturer + Edit/Remove buttons
+  - [ ] 5.5 Display Manufacturer section: name, contract validity + Edit/Remove buttons (Manufacturer is displayed within Product card)
+  - [x] 5.6 Implement Edit button to open inline edit form or modal (Using `RelationalField` inline forms)
+  - [x] 5.7 Implement Remove button with confirmation dialog (Handled by `RelationalField` selection clearing)
+  - [ ] 5.8 Warn user if removing required entity affects stage requirements (Basic validation exists)
+  - [x] 5.9 Add "Change" option to associate different entity
+  - [x] 5.10 Allow Company and Manufacturer to be optional (null)
 
 ---
 
-- [ ] 6.0 Timeline Section
-  - [ ] 6.1 Create `TimelineSection.tsx` component
-  - [ ] 6.2 Create `useOpportunityTimeline.ts` hook to fetch from `opportunity_history`
-  - [ ] 6.3 Display stage changes with from/to stages, timestamp, user
-  - [ ] 6.4 Display field edits with field name, old value, new value
-  - [ ] 6.5 Display activities (type, description, timestamp)
-  - [ ] 6.6 Display file uploads and deletions
-  - [ ] 6.7 Display related entity changes (added, removed, edited)
-  - [ ] 6.8 Order entries reverse chronologically (newest first)
-  - [ ] 6.9 Add filter buttons: All, Stage Changes, Field Edits, Activities, Files
-  - [ ] 6.10 Display user avatar/name who performed each action
-
----
-
-- [ ] 7.0 Activities Panel
-  - [ ] 7.1 Create `ActivitiesPanel.tsx` component
-  - [ ] 7.2 Create `useOpportunityActivities.ts` hook for CRUD operations
-  - [ ] 7.3 Implement activity creation form: type dropdown (Follow Up, Call, Email, Meeting), description, date/time picker
-  - [ ] 7.4 Save activities to `opportunity_activities` table
-  - [ ] 7.5 Display activities in timeline after creation
-  - [ ] 7.6 Allow users to edit their own activities
-  - [ ] 7.7 Allow users to delete their own activities (with confirmation)
-
----
-
-- [ ] 8.0 Files Section
-  - [ ] 8.1 Create `FilesSection.tsx` component (reuse `DocumentsList` patterns)
-  - [ ] 8.2 Add "Add File" button with drag-and-drop support
-  - [ ] 8.3 Display uploaded files: name, type icon, upload date, uploaded by
-  - [ ] 8.4 Implement download functionality with signed URLs
-  - [ ] 8.5 Implement delete with confirmation dialog
-  - [ ] 8.6 Log file uploads/deletions to opportunity_history
-  - [ ] 8.7 Validate file types: PDF, DOC, DOCX, XLS, XLSX, PNG, JPG, JPEG
-  - [ ] 8.8 Enforce 10MB max file size
-
----
-
-- [ ] 9.0 Mark as Won/Lost Functionality
-  - [ ] 9.1 Create `MarkAsLostModal.tsx` component
-  - [ ] 9.2 Implement lost reason dropdown with predefined + custom reasons
-  - [ ] 9.3 Show "Other" option with text field for custom description
-  - [ ] 9.4 Update opportunity stage to "Lost" on confirmation
-  - [ ] 9.5 Log lost action to timeline with reason
-  - [ ] 9.6 Hide "Mark as Lost" button when stage is already Won
-  - [ ] 9.7 Create `MarkAsWonModal.tsx` component
-  - [ ] 9.8 Require either Purchase Order file OR Order Agreement Description
-  - [ ] 9.9 Update opportunity stage to "Won" on confirmation
-  - [ ] 9.10 Log won action to timeline
-  - [ ] 9.11 Keep lost/won opportunities searchable but removed from active pipeline
-
----
-
-- [ ] 10.0 Lost Reasons Administration
-  - [ ] 10.1 Create `useLostReasons.ts` hook for CRUD operations
-  - [ ] 10.2 Add Lost Reasons section in Settings page (admin only)
+- [x] 6.0 Timeline Section
   - [ ] 10.3 Display predefined reasons as non-deletable (can be disabled)
   - [ ] 10.4 Allow admin to add custom lost reasons
   - [ ] 10.5 Allow admin to edit custom lost reasons

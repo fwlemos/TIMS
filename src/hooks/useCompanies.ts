@@ -22,7 +22,11 @@ export function useCompanies(filters?: CompanyFilters) {
             .order('name')
 
         if (filters?.type) {
-            query = query.eq('type', filters.type)
+            if (filters.type === 'company') {
+                query = query.or('type.eq.company,type.is.null')
+            } else {
+                query = query.eq('type', filters.type)
+            }
         }
 
         const { data, error } = await query

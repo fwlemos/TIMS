@@ -47,8 +47,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium',
                     'transition-all duration-150 ease-out',
                     isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                        ? 'bg-[hsl(var(--sidebar-fg))] text-[hsl(var(--sidebar-bg))]'
+                        : 'text-[hsl(var(--sidebar-fg))] opacity-70 hover:opacity-100 hover:bg-[hsl(var(--sidebar-fg))/0.1]',
                     collapsed && 'justify-center'
                 )}
                 title={collapsed ? item.name : undefined}
@@ -62,7 +62,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     return (
         <aside
             className={clsx(
-                'fixed left-0 top-0 z-40 h-screen bg-[hsl(var(--sidebar-bg))] border-r border-[hsl(var(--sidebar-border))]',
+                'fixed left-0 top-0 z-40 h-screen bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))] border-r border-[hsl(var(--sidebar-border))]',
                 'flex flex-col transition-all duration-300 ease-out',
                 collapsed ? 'w-[72px]' : 'w-[240px] shadow-2xl'
             )}
@@ -86,8 +86,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     <button
                         onClick={onToggle}
                         className={clsx(
-                            'p-1.5 rounded-lg text-muted-foreground',
-                            'hover:bg-accent hover:text-accent-foreground',
+                            'p-1.5 rounded-lg text-[hsl(var(--sidebar-fg))] opacity-70',
+                            'hover:opacity-100 hover:bg-[hsl(var(--sidebar-fg))/0.1]',
                             'transition-all duration-150 ease-out'
                         )}
                         title="Collapse sidebar"

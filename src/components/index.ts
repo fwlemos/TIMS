@@ -2,7 +2,6 @@
 export { AppShell } from './layout/AppShell'
 export { Sidebar } from './layout/Sidebar'
 export { Header } from './layout/Header'
-export { ThemeToggle } from './layout/ThemeToggle'
 
 // Shared UI components
 export { Badge } from './shared/Badge'
@@ -13,7 +12,8 @@ export { DataTable } from './shared/DataTable'
 export { FAB } from './shared/FAB'
 export { Input } from './shared/Input'
 export { Modal } from './shared/Modal'
-export { Skeleton, SkeletonCard, SkeletonTable, SkeletonKanban } from './shared/Skeleton'
+export { Skeleton } from './shared/Skeleton'
 
 // Route guard
 export { ProtectedRoute } from './ProtectedRoute'
+

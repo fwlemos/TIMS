@@ -55,7 +55,7 @@ export function KanbanColumn({ stage, opportunities, onCardClick }: KanbanColumn
                 ref={setNodeRef}
                 className={clsx(
                     'flex-1 p-2 rounded-xl min-h-[200px] space-y-3',
-                    'bg-muted/30 border-2 border-dashed border-transparent',
+                    'bg-gray-200/60 dark:bg-muted/40 border-2 border-dashed border-transparent',
                     'transition-colors duration-200',
                     isOver && 'border-primary/50 bg-primary/5'
                 )}

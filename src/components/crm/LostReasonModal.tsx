@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Loader2, AlertTriangle } from 'lucide-react'
 import { Modal } from '@/components/shared/Modal'
+import { useLostReasons } from '@/hooks/useLostReasons'
 
 interface LostReasonModalProps {
     isOpen: boolean
@@ -10,15 +11,39 @@ interface LostReasonModalProps {
 }
 
 export function LostReasonModal({ isOpen, onClose, onConfirm, opportunityTitle }: LostReasonModalProps) {
-    const [reason, setReason] = useState('')
+    const { reasons, loading: loadingReasons } = useLostReasons()
+    const [selectedReasonId, setSelectedReasonId] = useState<string>('')
+    const [customReason, setCustomReason] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+
+    const isOther = reasons.find(r => r.id === selectedReasonId)?.reason === 'Other' || selectedReasonId === 'other_custom'
+
+    // Check if "Other" exists in reasons, if not, we use a fake id
+    const otherOptionId = reasons.find(r => r.reason.toLowerCase() === 'other')?.id || 'other_custom'
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
-        if (!reason.trim()) {
-            setError('Please provide a reason for marking this opportunity as lost.')
+        if (!selectedReasonId) {
+            setError('Please select a reason.')
+            return
+        }
+
+        let finalReason = ''
+        if (selectedReasonId === otherOptionId) {
+            if (!customReason.trim()) {
+                setError('Please provide a description.')
+                return
+            }
+            finalReason = customReason.trim()
+        } else {
+            const reasonObj = reasons.find(r => r.id === selectedReasonId)
+            finalReason = reasonObj ? reasonObj.reason : ''
+        }
+
+        if (!finalReason) {
+            setError('Invalid reason selected.')
             return
         }
 
@@ -26,8 +51,9 @@ export function LostReasonModal({ isOpen, onClose, onConfirm, opportunityTitle }
         setError(null)
 
         try {
-            await onConfirm(reason.trim())
-            setReason('')
+            await onConfirm(finalReason)
+            setCustomReason('')
+            setSelectedReasonId('')
             onClose()
         } catch (err) {
             setError('Failed to update opportunity. Please try again.')
@@ -37,7 +63,8 @@ export function LostReasonModal({ isOpen, onClose, onConfirm, opportunityTitle }
     }
 
     const handleClose = () => {
-        setReason('')
+        setCustomReason('')
+        setSelectedReasonId('')
         setError(null)
         onClose()
     }
@@ -61,13 +88,42 @@ export function LostReasonModal({ isOpen, onClose, onConfirm, opportunityTitle }
                     <label className="block text-sm font-medium mb-1.5">
                         Lost Reason <span className="text-destructive">*</span>
                     </label>
-                    <textarea
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        className="input min-h-[100px] resize-y"
-                        placeholder="Why was this opportunity lost? (e.g., competitor won, budget constraints, no response...)"
-                    />
+                    {loadingReasons ? (
+                        <div className="h-10 w-full bg-muted animate-pulse rounded" />
+                    ) : (
+                        <select
+                            value={selectedReasonId}
+                            onChange={(e) => {
+                                setSelectedReasonId(e.target.value)
+                                setError(null)
+                            }}
+                            className="input w-full"
+                        >
+                            <option value="">Select a reason...</option>
+                            {reasons.map(reason => (
+                                <option key={reason.id} value={reason.id}>{reason.reason}</option>
+                            ))}
+                            {/* Ensure Other option is available if not in DB */}
+                            {!reasons.find(r => r.reason.toLowerCase() === 'other') && (
+                                <option value="other_custom">Other</option>
+                            )}
+                        </select>
+                    )}
                 </div>
+
+                {(selectedReasonId === otherOptionId || selectedReasonId === 'other_custom') && (
+                    <div>
+                        <label className="block text-sm font-medium mb-1.5">
+                            Description <span className="text-destructive">*</span>
+                        </label>
+                        <textarea
+                            value={customReason}
+                            onChange={(e) => setCustomReason(e.target.value)}
+                            className="input min-h-[80px] w-full resize-y"
+                            placeholder="Please provide more details..."
+                        />
+                    </div>
+                )}
 
                 {error && (
                     <p className="text-destructive text-sm">{error}</p>
@@ -84,7 +140,7 @@ export function LostReasonModal({ isOpen, onClose, onConfirm, opportunityTitle }
                     </button>
                     <button
                         type="submit"
-                        disabled={loading || !reason.trim()}
+                        disabled={loading || !selectedReasonId || (selectedReasonId === otherOptionId && !customReason.trim())}
                         className="btn bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
                         {loading ? (

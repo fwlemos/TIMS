@@ -55,13 +55,13 @@ export function Header({ onMenuClick, showMenuButton }: HeaderProps) {
         .slice(0, 2) || 'U'
 
     return (
-        <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 lg:px-6">
+        <header className="h-16 bg-[hsl(var(--header-bg))] text-[hsl(var(--header-fg))] border-b border-[hsl(var(--header-border))] flex items-center justify-between px-4 lg:px-6">
             {/* Left side - Menu button (mobile) + Search */}
             <div className="flex items-center gap-4 flex-1">
                 {showMenuButton && (
                     <button
                         onClick={onMenuClick}
-                        className="lg:hidden p-2 rounded-lg hover:bg-accent transition-colors"
+                        className="lg:hidden p-2 rounded-lg hover:bg-[hsl(var(--header-fg))/0.1] transition-colors"
                     >
                         <Menu className="w-5 h-5" />
                     </button>
@@ -76,7 +76,7 @@ export function Header({ onMenuClick, showMenuButton }: HeaderProps) {
                 {/* Theme Toggle */}
                 <button
                     onClick={toggleTheme}
-                    className="p-2.5 rounded-lg hover:bg-accent transition-colors"
+                    className="p-2.5 rounded-lg hover:bg-[hsl(var(--header-fg))/0.1] transition-colors"
                     title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                 >
                     {isDark ? (
@@ -92,25 +92,26 @@ export function Header({ onMenuClick, showMenuButton }: HeaderProps) {
                         onClick={() => setShowUserMenu(!showUserMenu)}
                         className={clsx(
                             'flex items-center gap-2 p-1.5 pr-3 rounded-lg transition-colors',
-                            'hover:bg-accent',
-                            showUserMenu && 'bg-accent'
+                            'hover:bg-[hsl(var(--header-fg))/0.1]',
+                            showUserMenu && 'bg-[hsl(var(--header-fg))/0.1]'
                         )}
                     >
                         <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
                             {userInitials}
                         </div>
                         <ChevronDown className={clsx(
-                            'w-4 h-4 text-muted-foreground transition-transform duration-200',
+                            'w-4 h-4 transition-transform duration-200',
+                            'text-[hsl(var(--header-fg))] opacity-70',
                             showUserMenu && 'rotate-180'
                         )} />
                     </button>
 
                     {/* Dropdown */}
                     {showUserMenu && (
-                        <div className="absolute right-0 top-full mt-2 w-56 py-1 bg-card rounded-xl border border-border shadow-soft-lg animate-fade-in z-50">
-                            <div className="px-4 py-3 border-b border-border">
+                        <div className="absolute right-0 top-full mt-2 w-56 py-1 bg-[hsl(var(--header-bg))] text-[hsl(var(--header-fg))] border border-[hsl(var(--header-border))] rounded-xl shadow-soft-lg animate-fade-in z-50">
+                            <div className="px-4 py-3 border-b border-[hsl(var(--header-border))]">
                                 <p className="text-sm font-medium truncate">{user?.email}</p>
-                                <p className="text-xs text-muted-foreground">Tennessine</p>
+                                <p className="text-xs opacity-70">Tennessine</p>
                             </div>
 
                             <div className="py-1">
@@ -119,14 +120,14 @@ export function Header({ onMenuClick, showMenuButton }: HeaderProps) {
                                         setShowUserMenu(false)
                                         navigate('/settings')
                                     }}
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm hover:bg-accent transition-colors"
+                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm hover:bg-[hsl(var(--header-fg))/0.1] transition-colors"
                                 >
                                     <User className="w-4 h-4" />
                                     Settings
                                 </button>
                                 <button
                                     onClick={handleSignOut}
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
                                 >
                                     <LogOut className="w-4 h-4" />
                                     Sign Out

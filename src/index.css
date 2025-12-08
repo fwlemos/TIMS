@@ -10,7 +10,7 @@
 @layer base {
   :root {
     /* Light Theme (Default) */
-    --background: 0 0% 100%;
+    --background: 220 33% 98%;
     --foreground: 240 10% 3.9%;
 
     --card: 0 0% 100%;
@@ -35,9 +35,14 @@
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
 
-    /* Sidebar specific */
-    --sidebar-bg: 0 0% 98%;
-    --sidebar-border: 240 5.9% 92%;
+    /* Sidebar & Header specific (Inverted) */
+    --sidebar-bg: 0 0% 5%;
+    --sidebar-fg: 0 0% 98%;
+    --sidebar-border: 0 0% 15%;
+
+    --header-bg: 0 0% 2%;
+    --header-fg: 0 0% 98%;
+    --header-border: 0 0% 15%;
 
     /* Global radius */
     --radius: 0.5rem;
@@ -70,9 +75,14 @@
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
 
-    /* Sidebar specific */
-    --sidebar-bg: 240 10% 5.9%;
-    --sidebar-border: 240 3.7% 15.9%;
+    /* Sidebar & Header specific (Inverted for Dark Mode -> White) */
+    --sidebar-bg: 0 0% 98%;
+    --sidebar-fg: 240 10% 3.9%;
+    --sidebar-border: 240 5.9% 90%;
+
+    --header-bg: 0 0% 98%;
+    --header-fg: 240 10% 3.9%;
+    --header-border: 240 5.9% 90%;
   }
 }
 

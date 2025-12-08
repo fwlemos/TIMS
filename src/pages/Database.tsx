@@ -35,7 +35,7 @@ export default function Database() {
     const [deleteLoading, setDeleteLoading] = useState(false)
 
     const contacts = useContacts()
-    const companies = useCompanies()
+    const companies = useCompanies({ type: 'company' })
     const products = useProducts()
     const {
         companies: manufacturerList,

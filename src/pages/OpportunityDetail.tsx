@@ -1,14 +1,17 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, XCircle, Loader2, User, Building2, Check, Package } from 'lucide-react'
-import { useState, useCallback, useMemo } from 'react'
+import { ArrowLeft, Calendar, XCircle, Loader2, User, Building2, Check, Package, ChevronsUpDown, UserCircle, Factory } from 'lucide-react'
+import { useState, useCallback, useMemo, useRef } from 'react'
+import { supabase } from '@/lib/supabase'
 import { useOpportunityDetail } from '@/hooks/useOpportunityDetail'
-import { StageBreadcrumb, StageColumns, RelatedEntitiesPanel } from '@/components/opportunity'
+import { StageBreadcrumb, StageAccordion, TimelineSection, ActivitiesPanel, FilesSection } from '@/components/opportunity'
+import type { StageAccordionHandle } from '@/components/opportunity'
 import { LostReasonModal } from '@/components/crm/LostReasonModal'
-import { SlidePanel } from '@/components/shared/SlidePanel'
+import { MarkAsWonModal } from '@/components/crm/MarkAsWonModal'
 import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from '@/components/shared/RelationalField'
 import { useContacts } from '@/hooks/useContacts'
 import { useCompanies } from '@/hooks/useCompanies'
 import { useProducts } from '@/hooks/useProducts'
+import { useUsers } from '@/hooks/useUsers'
 
 const LEAD_ORIGIN_OPTIONS = [
     { value: 'website', label: 'Website' },
@@ -101,6 +104,7 @@ export default function OpportunityDetail() {
     const { companies, createCompany, refetch: refetchCompanies } = useCompanies()
     const { products, createProduct, refetch: refetchProducts } = useProducts()
     const { companies: manufacturers, createCompany: createManufacturer, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
+    const { users } = useUsers()
 
     // Search states
     const [contactSearch, setContactSearch] = useState('')
@@ -109,11 +113,14 @@ export default function OpportunityDetail() {
     const [manufacturerSearch, setManufacturerSearch] = useState('')
 
     const [showLostModal, setShowLostModal] = useState(false)
+    const [showWonModal, setShowWonModal] = useState(false)
     const [savingField, setSavingField] = useState<string | null>(null)
     const [savedField, setSavedField] = useState<string | null>(null)
+    const [timelineRefreshTrigger, setTimelineRefreshTrigger] = useState(0)
 
-    // Entity selection panel state
-    const [editingEntity, setEditingEntity] = useState<'contact' | 'company' | 'product' | null>(null)
+    // Ref for stage accordion expand/collapse control
+    const stageAccordionRef = useRef<StageAccordionHandle>(null)
+    const [allStagesExpanded, setAllStagesExpanded] = useState(false)
 
     // Calculate days since creation
     const getDaysOpen = () => {
@@ -198,18 +205,84 @@ export default function OpportunityDetail() {
         }
     }, [opportunity, addProduct, removeProduct])
 
+    const handleResponsibleChange = useCallback(async (userId: string | null) => {
+        setSavingField('responsible')
+        try {
+            await updateOpportunity({ assigned_to: userId })
+            setSavedField('responsible')
+            setTimeout(() => setSavedField(null), 1500)
+        } catch (err) {
+            console.error('Error updating responsible:', err)
+        } finally {
+            setSavingField(null)
+        }
+    }, [updateOpportunity])
+
     const handleMarkAsLost = async (reason: string) => {
+        if (!opportunity) return
         const lostStage = stages.find(s => s.name.toLowerCase().includes('lost'))
         if (lostStage) {
             await updateOpportunity({
                 stage_id: lostStage.id,
                 lost_reason: reason,
             })
+            // Log to history
+            const { error: historyError } = await supabase
+                .from('opportunity_history')
+                .insert({
+                    opportunity_id: opportunityId,
+                    action: 'stage_change',
+                    field_name: 'stage',
+                    old_value: opportunity.stage?.name,
+                    new_value: lostStage.name,
+                    user_id: (await supabase.auth.getUser()).data.user?.id
+                })
+            if (historyError) console.error('Failed to log lost history:', historyError)
         }
         setShowLostModal(false)
+        setTimelineRefreshTrigger(prev => prev + 1)
+    }
+
+    const handleMarkAsWon = async (data: { description?: string, fileUrl?: string }) => {
+        if (!opportunity) return
+        const wonStage = stages.find(s => s.name.toLowerCase().includes('won'))
+        if (wonStage) {
+            await updateOpportunity({
+                stage_id: wonStage.id,
+                won_order_description: data.description,
+                won_purchase_order_url: data.fileUrl
+            })
+            // Log to history
+            const { error: historyError } = await supabase
+                .from('opportunity_history')
+                .insert({
+                    opportunity_id: opportunityId,
+                    action: 'stage_change',
+                    field_name: 'stage',
+                    old_value: opportunity.stage?.name,
+                    new_value: wonStage.name,
+                    user_id: (await supabase.auth.getUser()).data.user?.id
+                })
+            if (historyError) console.error('Failed to log won history:', historyError)
+        }
+        setShowWonModal(false)
+        setTimelineRefreshTrigger(prev => prev + 1)
     }
 
     const handleStageChange = async (newStageId: string) => {
+        const targetStage = stages.find(s => s.id === newStageId)
+        if (!targetStage) return
+
+        if (targetStage.name.toLowerCase().includes('lost')) {
+            setShowLostModal(true)
+            return
+        }
+
+        if (targetStage.name.toLowerCase().includes('won')) {
+            setShowWonModal(true)
+            return
+        }
+
         await updateStage(newStageId)
     }
 
@@ -222,6 +295,11 @@ export default function OpportunityDetail() {
         // Allow moving backward without validation
         if (targetIndex < currentIndex) {
             return { valid: true }
+        }
+
+        // Prevent skipping stages
+        if (targetIndex > currentIndex + 1) {
+            return { valid: false, errors: ['You cannot skip stages. Please advance sequentially.'] }
         }
 
         const errors: string[] = []
@@ -472,84 +550,49 @@ export default function OpportunityDetail() {
 
     return (
         <div className="h-full flex flex-col gap-6 overflow-y-auto">
-            {/* Header */}
-            <div className="flex flex-col gap-4">
-                {/* Back button and title row */}
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => navigate('/crm')}
-                            className="p-2 rounded-lg hover:bg-muted transition-colors"
-                            aria-label="Back to CRM"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-                        <div>
-                            {/* Editable title */}
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    defaultValue={opportunity.title}
-                                    onBlur={(e) => {
-                                        if (e.target.value !== opportunity.title) {
-                                            handleFieldChange('title', e.target.value)
-                                        }
-                                    }}
-                                    className="text-2xl font-semibold bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none transition-colors"
-                                    disabled={isTerminal}
-                                />
-                                <FieldIndicator field="title" />
-                            </div>
-                            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                {opportunity.stage && (
-                                    <span
-                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                                        style={{
-                                            backgroundColor: `${opportunity.stage.color}20`,
-                                            color: opportunity.stage.color || '#6b7280',
-                                        }}
-                                    >
-                                        {opportunity.stage.name}
-                                    </span>
-                                )}
-                                <span className="flex items-center gap-1">
-                                    <Calendar className="w-4 h-4" />
-                                    {getDaysOpen()} days open
-                                </span>
-                                <span className="flex items-center gap-1">
-                                    <User className="w-4 h-4" />
-                                    {opportunity.assigned_to ? 'Assigned' : 'Unassigned'}
-                                </span>
-                            </div>
+            {/* Header - Unified Row */}
+            <div className="flex items-center justify-between gap-6 p-4 bg-card border border-border rounded-xl shadow-sm">
+                {/* Left Section: Back Button + Title Block */}
+                <div className="flex items-center gap-4 flex-shrink-0 min-w-[280px]">
+                    <button
+                        onClick={() => navigate('/crm')}
+                        className="p-2 rounded-lg hover:bg-muted transition-colors flex-shrink-0"
+                        aria-label="Back to CRM"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                    <div className="min-w-0">
+                        {/* Editable title */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                defaultValue={opportunity.title}
+                                onBlur={(e) => {
+                                    if (e.target.value !== opportunity.title) {
+                                        handleFieldChange('title', e.target.value)
+                                    }
+                                }}
+                                className="text-xl font-semibold bg-transparent border-b border-transparent hover:border-muted-foreground/30 focus:border-primary focus:outline-none transition-colors w-full"
+                                disabled={isTerminal}
+                            />
+                            <FieldIndicator field="title" />
                         </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-3">
-                        {!isTerminal && (
-                            <button
-                                onClick={() => setShowLostModal(true)}
-                                className="btn-outline flex items-center gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
-                            >
-                                <XCircle className="w-4 h-4" />
-                                Mark as Lost
-                            </button>
-                        )}
-                        {isLost && (
-                            <span className="px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-sm font-medium">
-                                Lost: {opportunity.lost_reason || 'No reason specified'}
+                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                            {/* Stage pill removed as it is redundant with Breadcrumb */}
+                            <span className="flex items-center gap-1">
+                                <Calendar className="w-3.5 h-3.5" />
+                                {getDaysOpen()} days open
                             </span>
-                        )}
-                        {isWon && (
-                            <span className="px-3 py-1.5 rounded-lg bg-success/10 text-success text-sm font-medium">
-                                Won
+                            <span className="flex items-center gap-1">
+                                <User className="w-3.5 h-3.5" />
+                                {opportunity.assigned_to ? 'Assigned' : 'Unassigned'}
                             </span>
-                        )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Stage Breadcrumb */}
-                <div className="bg-card rounded-xl p-4 border border-border">
+                {/* Center Section: Breadcrumb */}
+                <div className="flex-1 overflow-x-auto flex justify-center px-2 no-scrollbar">
                     <StageBreadcrumb
                         stages={stages}
                         currentStageId={opportunity.stage_id}
@@ -558,26 +601,71 @@ export default function OpportunityDetail() {
                         disabled={isTerminal}
                     />
                 </div>
+
+                {/* Right Section: Actions */}
+                <div className="flex items-center gap-3 flex-shrink-0">
+                    {!isTerminal && (
+                        <button
+                            onClick={() => setShowLostModal(true)}
+                            className="btn-outline flex items-center gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 whitespace-nowrap"
+                        >
+                            <XCircle className="w-4 h-4" />
+                            Mark as Lost
+                        </button>
+                    )}
+                    {isLost && (
+                        <span className="px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-sm font-medium whitespace-nowrap">
+                            Lost: {opportunity.lost_reason || 'No reason specified'}
+                        </span>
+                    )}
+                    {isWon && (
+                        <span className="px-3 py-1.5 rounded-lg bg-success/10 text-success text-sm font-medium whitespace-nowrap">
+                            Won
+                        </span>
+                    )}
+                </div>
             </div>
 
-            {/* Stage Fields Columns */}
-            <StageColumns
-                opportunity={opportunity}
-                stages={stages}
-                currentStageId={opportunity.stage_id}
-                onFieldChange={handleFieldChange}
-                disabled={isTerminal}
-                savingField={savingField}
-                savedField={savedField}
-            />
+            {/* Main Content - 2 Columns */}
+            <div className="flex-1 flex gap-6 min-h-0 overflow-hidden">
+                {/* Left Column (Main) - Flex 2 */}
+                <div className="flex-[2] flex flex-col gap-6 overflow-y-auto min-h-0 pr-2">
+                    {/* Stage Fields Accordion */}
+                    <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold">Stage Fields</h2>
+                            <button
+                                onClick={() => stageAccordionRef.current?.toggleAll()}
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+                            >
+                                <ChevronsUpDown className="w-3.5 h-3.5" />
+                                {allStagesExpanded ? 'Collapse All' : 'Expand All'}
+                            </button>
+                        </div>
+                        <StageAccordion
+                            ref={stageAccordionRef}
+                            opportunity={opportunity}
+                            stages={stages}
+                            currentStageId={opportunity.stage_id}
+                            onFieldChange={handleFieldChange}
+                            disabled={isTerminal}
+                            savingField={savingField}
+                            savedField={savedField}
+                            onExpandChange={(allExpanded) => setAllStagesExpanded(allExpanded)}
+                        />
+                    </div>
 
-            {/* Main Content Area */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
-                {/* Left column - Opportunity Details */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Opportunity Details */}
-                    <div className="bg-card rounded-xl border border-border p-6">
-                        <h2 className="text-lg font-semibold mb-4">Opportunity Details</h2>
+                    {/* History & Activities (Moved from Sidebar) */}
+                    <div className="space-y-6">
+                        <ActivitiesPanel
+                            opportunityId={opportunity.id}
+                            onActivityAdded={() => setTimelineRefreshTrigger(prev => prev + 1)}
+                        />
+                    </div>
+
+                    {/* Opportunity Details Section */}
+                    <div className="bg-card rounded-xl border border-border p-6 shadow-sm">
+                        <h2 className="text-lg font-semibold mb-4">General Details</h2>
 
                         <div className="grid grid-cols-2 gap-x-6 gap-y-4">
                             {/* Lead Origin */}
@@ -656,67 +744,24 @@ export default function OpportunityDetail() {
                                     <option value="EUR">EUR</option>
                                 </select>
                             </div>
-
-                            {/* Net Price */}
-                            <div>
-                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                    Net Price
-                                    <FieldIndicator field="net_price" />
-                                </label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    defaultValue={opportunity.net_price || ''}
-                                    onBlur={(e) => {
-                                        const newValue = e.target.value ? parseFloat(e.target.value) : null
-                                        if (newValue !== opportunity.net_price) {
-                                            handleFieldChange('net_price', newValue)
-                                        }
-                                    }}
-                                    className="input w-full"
-                                    placeholder="0.00"
-                                    disabled={isTerminal}
-                                />
-                            </div>
-
-                            {/* Sales Price */}
-                            <div>
-                                <label className="text-sm text-muted-foreground flex items-center gap-2 mb-1">
-                                    Sales Price
-                                    <FieldIndicator field="sales_price" />
-                                </label>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    defaultValue={opportunity.sales_price || ''}
-                                    onBlur={(e) => {
-                                        const newValue = e.target.value ? parseFloat(e.target.value) : null
-                                        if (newValue !== opportunity.sales_price) {
-                                            handleFieldChange('sales_price', newValue)
-                                        }
-                                    }}
-                                    className="input w-full"
-                                    placeholder="0.00"
-                                    disabled={isTerminal}
-                                />
-                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Right column - Information sidebar with Related Entities at top */}
-                <div className="space-y-6">
-                    {/* Related Entities - Now in Information sidebar */}
-                    <div className="bg-card rounded-xl border border-border p-6">
-                        <h2 className="text-lg font-semibold mb-4">Related Entities</h2>
+                {/* Right Column (Sidebar) - Flex 1 */}
+                <div className="flex-[1] flex flex-col gap-6 overflow-y-auto min-h-0 min-w-[320px] pb-4">
+                    {/* Related Entities (Red Position) */}
+                    <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+                        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                            Related Entities
+                        </h3>
 
-                        <div className="space-y-4">
-                            {/* Contact - Editable */}
+                        <div className="space-y-5">
+                            {/* Contact */}
                             <div>
-                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
                                     <User className="w-4 h-4 text-muted-foreground" />
                                     Contact
-                                    <FieldIndicator field="contact" />
                                 </label>
                                 <RelationalField
                                     entityType="contact"
@@ -737,38 +782,23 @@ export default function OpportunityDetail() {
                                 />
                             </div>
 
-                            {/* Company - Editable */}
+                            {/* Company (Derived) */}
                             <div>
-                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
                                     <Building2 className="w-4 h-4 text-muted-foreground" />
                                     Company
-                                    <FieldIndicator field="company" />
+                                    <span className="text-xs font-normal text-muted-foreground ml-auto">(From Contact)</span>
                                 </label>
-                                <RelationalField
-                                    entityType="company"
-                                    entityLabel="Company"
-                                    displayFields={['name']}
-                                    searchFields={['name']}
-                                    nestedFormSchema={companyFormSchema}
-                                    value={opportunity.company_id}
-                                    onChange={handleCompanyChange}
-                                    options={companyOptions}
-                                    onSearch={setCompanySearch}
-                                    onCreate={handleCreateCompany}
-                                    onRefresh={refetchCompanies}
-                                    getRecordDisplay={getCompanyDisplay}
-                                    nestedFieldsConfig={nestedFieldsConfig}
-                                    disabled={isTerminal}
-                                    canCreate
-                                />
+                                <div className="input w-full bg-muted/50 text-muted-foreground flex items-center min-h-[42px]">
+                                    {opportunity.contact?.company?.name || 'No company associated'}
+                                </div>
                             </div>
 
-                            {/* Products - Multi-select */}
+                            {/* Products */}
                             <div>
-                                <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
                                     <Package className="w-4 h-4 text-muted-foreground" />
                                     Products
-                                    <FieldIndicator field="products" />
                                 </label>
                                 <RelationalField
                                     entityType="product"
@@ -789,31 +819,64 @@ export default function OpportunityDetail() {
                                     canCreate
                                 />
                             </div>
-                        </div>
-                    </div>
 
-                    {/* Information */}
-                    <div className="bg-card rounded-xl border border-border p-6">
-                        <h2 className="text-lg font-semibold mb-4">Information</h2>
-
-                        <div className="space-y-4">
-                            {/* Responsible - placeholder for user dropdown */}
+                            {/* Manufacturers (Derived) */}
                             <div>
-                                <label className="text-sm text-muted-foreground block mb-1">Responsible</label>
-                                <p className="font-medium py-2 text-muted-foreground italic">
-                                    {opportunity.assigned_to ? 'Assigned user' : 'No one assigned'}
-                                </p>
-                            </div>
-
-                            {/* Metadata */}
-                            <div className="pt-4 border-t border-border">
-                                <div className="text-sm text-muted-foreground space-y-1">
-                                    <p>Created: {new Date(opportunity.created_at).toLocaleDateString('pt-BR')}</p>
-                                    <p>Updated: {new Date(opportunity.updated_at).toLocaleDateString('pt-BR')}</p>
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
+                                    <Factory className="w-4 h-4 text-muted-foreground" />
+                                    Manufacturers
+                                    <span className="text-xs font-normal text-muted-foreground ml-auto">(From Products)</span>
+                                </label>
+                                <div className="min-h-[42px] input w-full bg-muted/50 text-muted-foreground flex flex-wrap gap-2 py-2 h-auto">
+                                    {(() => {
+                                        const manufacturers = Array.from(new Set(
+                                            opportunity.products?.map(p => p.manufacturer?.name).filter(Boolean)
+                                        ))
+                                        return manufacturers.length > 0
+                                            ? manufacturers.map(m => (
+                                                <span key={m} className="inline-flex items-center px-2 py-1 rounded bg-background border border-border text-xs font-medium text-foreground">
+                                                    {m}
+                                                </span>
+                                            ))
+                                            : 'No manufacturers associated'
+                                    })()}
                                 </div>
                             </div>
+
+                            {/* Responsible */}
+                            <div>
+                                <label className="block text-sm font-medium mb-1.5 flex items-center gap-2">
+                                    <UserCircle className="w-4 h-4 text-muted-foreground" />
+                                    Responsible
+                                </label>
+                                <select
+                                    value={opportunity.assigned_to || ''}
+                                    onChange={(e) => handleResponsibleChange(e.target.value || null)}
+                                    className="input w-full"
+                                    disabled={isTerminal}
+                                >
+                                    <option value="">Unassigned</option>
+                                    {users.map((user) => (
+                                        <option key={user.id} value={user.id}>
+                                            {user.name || user.email?.split('@')[0] || 'Unknown User'}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Files Section (Moved from Main) */}
+                    <FilesSection
+                        opportunityId={opportunity.id}
+                        onFileChange={() => setTimelineRefreshTrigger(prev => prev + 1)}
+                    />
+
+                    {/* Timeline Section (Moved back to Sidebar) */}
+                    <TimelineSection
+                        opportunityId={opportunity.id}
+                        refreshTrigger={timelineRefreshTrigger}
+                    />
                 </div>
             </div>
 
@@ -822,6 +885,14 @@ export default function OpportunityDetail() {
                 isOpen={showLostModal}
                 onClose={() => setShowLostModal(false)}
                 onConfirm={handleMarkAsLost}
+                opportunityTitle={opportunity.title}
+            />
+
+            {/* Mark As Won Modal */}
+            <MarkAsWonModal
+                isOpen={showWonModal}
+                onClose={() => setShowWonModal(false)}
+                onConfirm={handleMarkAsWon}
                 opportunityTitle={opportunity.title}
             />
         </div>
