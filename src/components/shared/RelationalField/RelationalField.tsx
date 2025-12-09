@@ -6,6 +6,7 @@ import { RelationalDropdown } from './RelationalDropdown'
 import { RelationalSelectedCard } from './RelationalSelectedCard'
 import { RelationalNestedForm } from './RelationalNestedForm'
 import { FloatingFormPanel } from './FloatingFormPanel'
+import { parseSupabaseError } from '@/utils/formErrorHandler'
 import type { RelationalFieldProps, RelationalOption, NestedFieldsConfig } from './types'
 
 const DEFAULT_MAX_DEPTH = 3
@@ -46,6 +47,7 @@ export function RelationalField({
     const [isSearching, setIsSearching] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [formError, setFormError] = useState<string | null>(null)
+    const [serverErrors, setServerErrors] = useState<Record<string, string>>({})
     const [editingId, setEditingId] = useState<string | null>(null)
 
     const triggerRef = useRef<HTMLButtonElement>(null)
@@ -116,11 +118,13 @@ export function RelationalField({
         setEditingId(null)
         setNestedFormOpen(true)
         setFormError(null)
+        setServerErrors({})
     }, [])
 
     const handleNestedFormSubmit = useCallback(async (data: Record<string, unknown>) => {
         setIsSubmitting(true)
         setFormError(null)
+        setServerErrors({})
 
         try {
             if (editingId && onEdit) {
@@ -149,11 +153,13 @@ export function RelationalField({
             }
         } catch (err: unknown) {
             console.error(editingId ? 'Edit error:' : 'Create error:', err)
-            const error = err as { message?: string; code?: string; hint?: string; details?: string }
-            const errorMsg = error.message || (editingId ? 'Failed to update' : 'Failed to create')
-            const hint = error.hint ? ` (${error.hint})` : ''
-            const code = error.code ? ` [${error.code}]` : ''
-            setFormError(`${errorMsg}${hint}${code}`)
+            const parsed = parseSupabaseError(err)
+
+            if (typeof parsed === 'string') {
+                setFormError(parsed)
+            } else {
+                setServerErrors({ [parsed.field]: parsed.message })
+            }
         } finally {
             setIsSubmitting(false)
         }
@@ -174,6 +180,7 @@ export function RelationalField({
         setEditingId(id)
         setNestedFormOpen(true)
         setFormError(null)
+        setServerErrors({})
     }, [getRecordData])
 
     // Check if we can nest further
@@ -258,7 +265,6 @@ export function RelationalField({
             )}
 
             {/* Add Button (Trigger) */}
-            {/* Show if single mode and nothing selected, OR if multi mode (always allowed to add more) */}
             {((mode === 'single' && selectedIds.length === 0) || mode === 'multi') && (
                 <div className="relative">
                     <button
@@ -320,6 +326,7 @@ export function RelationalField({
                         initialData={editingId && getRecordData ? getRecordData(editingId) : undefined}
                         isEditing={!!editingId}
                         forceInlineNested={true}
+                        serverErrors={serverErrors}
                     />
                 )
             ) : (
@@ -345,6 +352,7 @@ export function RelationalField({
                         hideHeader
                         hideWrapper
                         forceInlineNested={true}
+                        serverErrors={serverErrors}
                     />
                 </FloatingFormPanel>
             )}

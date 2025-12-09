@@ -9,6 +9,8 @@ import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from
 import { DocumentsList } from '@/components/documents/DocumentsList'
 import { supabase } from '@/lib/supabase'
 import type { Product, InsertTables } from '@/lib/database.types'
+import { useToast } from '@/components/shared/Toast'
+import { handleSupabaseError } from '@/utils/formErrorHandler'
 
 const productSchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -37,6 +39,7 @@ const manufacturerFormSchema: FormField[] = [
 ]
 
 export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
+    const { toast } = useToast()
     const { companies: manufacturers, createCompany: createManufacturer, refetch: refetchManufacturers } = useCompanies({ type: 'manufacturer' })
     const [manufacturerSearch, setManufacturerSearch] = useState('')
     const [selectedManufacturerId, setSelectedManufacturerId] = useState<string | null>(product?.manufacturer_id || null)
@@ -51,6 +54,7 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
     const {
         register,
         handleSubmit,
+        setError,
         formState: { errors, isSubmitting },
     } = useForm<ProductFormData>({
         resolver: zodResolver(productSchema),
@@ -64,17 +68,24 @@ export function ProductForm({ product, onSubmit, onCancel }: ProductFormProps) {
     })
 
     const handleFormSubmit = async (data: ProductFormData) => {
-        // Use the pre-generated ID for new products
-        const productData: InsertTables<'products'> & { id?: string } = {
-            id: isEditing ? undefined : entityId,
-            ...data,
-            manufacturer_id: selectedManufacturerId,
-            description: data.description || null,
-            ncm: data.ncm || null,
-            catalog_url: data.catalog_url || null,
-        }
+        try {
+            // Use the pre-generated ID for new products
+            const productData: InsertTables<'products'> & { id?: string } = {
+                id: isEditing ? undefined : entityId,
+                ...data,
+                manufacturer_id: selectedManufacturerId,
+                description: data.description || null,
+                ncm: data.ncm || null,
+                catalog_url: data.catalog_url || null,
+            }
 
-        await onSubmit(productData as InsertTables<'products'>)
+            await onSubmit(productData as InsertTables<'products'>)
+        } catch (error) {
+            const globalError = handleSupabaseError(error, setError)
+            if (globalError) {
+                toast(globalError, 'error')
+            }
+        }
     }
 
     const handleCancel = async () => {

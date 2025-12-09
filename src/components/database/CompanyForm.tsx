@@ -9,6 +9,8 @@ import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from
 import { DocumentsList } from '@/components/documents/DocumentsList'
 import { supabase } from '@/lib/supabase'
 import type { Company, InsertTables } from '@/lib/database.types'
+import { useToast } from '@/components/shared/Toast'
+import { handleSupabaseError } from '@/utils/formErrorHandler'
 
 const companySchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -39,6 +41,7 @@ const contactFormSchema: FormField[] = [
 ]
 
 export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
+    const { toast } = useToast()
     const { contacts, createContact, refetch } = useContacts()
     const [contactSearch, setContactSearch] = useState('')
 
@@ -61,6 +64,7 @@ export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
     const {
         register,
         handleSubmit,
+        setError,
         formState: { errors, isSubmitting },
     } = useForm<CompanyFormData>({
         resolver: zodResolver(companySchema),
@@ -76,18 +80,25 @@ export function CompanyForm({ company, onSubmit, onCancel }: CompanyFormProps) {
     })
 
     const handleFormSubmit = async (data: CompanyFormData) => {
-        const companyData: CompanySubmitData & { id?: string } = {
-            id: isEditing ? undefined : entityId,
-            ...data,
-            tax_id: data.tax_id || null,
-            address: data.address || null,
-            phone: data.phone || null,
-            website: data.website || null,
-            observation: data.observation || null,
-            contact_ids: selectedContactIds,
-            type: 'company',
+        try {
+            const companyData: CompanySubmitData & { id?: string } = {
+                id: isEditing ? undefined : entityId,
+                ...data,
+                tax_id: data.tax_id || null,
+                address: data.address || null,
+                phone: data.phone || null,
+                website: data.website || null,
+                observation: data.observation || null,
+                contact_ids: selectedContactIds,
+                type: 'company',
+            }
+            await onSubmit(companyData as CompanySubmitData)
+        } catch (error) {
+            const globalError = handleSupabaseError(error, setError)
+            if (globalError) {
+                toast(globalError, 'error')
+            }
         }
-        await onSubmit(companyData as CompanySubmitData)
     }
 
     const handleCancel = async () => {

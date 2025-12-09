@@ -9,6 +9,8 @@ import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from
 import { DocumentsList } from '@/components/documents/DocumentsList'
 import { supabase } from '@/lib/supabase'
 import type { Contact, InsertTables } from '@/lib/database.types'
+import { useToast } from '@/components/shared/Toast'
+import { handleSupabaseError } from '@/utils/formErrorHandler'
 
 const contactSchema = z.object({
     name: z.string().min(1, 'Name is required'),
@@ -35,6 +37,7 @@ const companyFormSchema: FormField[] = [
 ]
 
 export function ContactForm({ contact, onSubmit, onCancel }: ContactFormProps) {
+    const { toast } = useToast()
     const { companies, createCompany, refetch } = useCompanies()
     const [companySearch, setCompanySearch] = useState('')
     const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(contact?.company_id || null)
@@ -49,6 +52,7 @@ export function ContactForm({ contact, onSubmit, onCancel }: ContactFormProps) {
     const {
         register,
         handleSubmit,
+        setError,
         formState: { errors, isSubmitting },
     } = useForm<ContactFormData>({
         resolver: zodResolver(contactSchema),
@@ -62,14 +66,21 @@ export function ContactForm({ contact, onSubmit, onCancel }: ContactFormProps) {
     })
 
     const handleFormSubmit = async (data: ContactFormData) => {
-        const contactData: InsertTables<'contacts'> & { id?: string } = {
-            id: isEditing ? undefined : entityId,
-            ...data,
-            phone: data.phone || null,
-            company_id: selectedCompanyId,
-            observation: data.observation || null,
+        try {
+            const contactData: InsertTables<'contacts'> & { id?: string } = {
+                id: isEditing ? undefined : entityId,
+                ...data,
+                phone: data.phone || null,
+                company_id: selectedCompanyId,
+                observation: data.observation || null,
+            }
+            await onSubmit(contactData as InsertTables<'contacts'>)
+        } catch (error) {
+            const globalError = handleSupabaseError(error, setError)
+            if (globalError) {
+                toast(globalError, 'error')
+            }
         }
-        await onSubmit(contactData as InsertTables<'contacts'>)
     }
 
     const handleCancel = async () => {

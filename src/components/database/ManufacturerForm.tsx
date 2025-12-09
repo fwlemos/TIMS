@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase'
 import { useContacts } from '@/hooks/useContacts'
 import { useProducts } from '@/hooks/useProducts'
 import { RelationalField, FormField, NestedFieldsConfig, RelationalOption } from '@/components/shared/RelationalField'
+import { useToast } from '@/components/shared/Toast'
+import { handleSupabaseError } from '@/utils/formErrorHandler'
 
 const manufacturerSchema = z.object({
     id: z.string().optional(),
@@ -54,6 +56,7 @@ const productFormSchema: FormField[] = [
 ]
 
 export function ManufacturerForm({ manufacturer, onSubmit, onCancel }: ManufacturerFormProps) {
+    const { toast } = useToast()
     // Generate a temporary ID for new manufacturers to link documents before saving
     const tempId = useRef(crypto.randomUUID())
     const entityId = manufacturer?.id || tempId.current
@@ -87,6 +90,7 @@ export function ManufacturerForm({ manufacturer, onSubmit, onCancel }: Manufactu
     const {
         register,
         handleSubmit,
+        setError,
         formState: { errors, isSubmitting },
     } = useForm<ManufacturerFormData>({
         resolver: zodResolver(manufacturerSchema),
@@ -107,20 +111,27 @@ export function ManufacturerForm({ manufacturer, onSubmit, onCancel }: Manufactu
     })
 
     const handleFormSubmit = async (data: ManufacturerFormData) => {
-        await onSubmit({
-            ...data,
-            type: 'manufacturer',
-            phone: data.phone || null,
-            tax_id: data.tax_id || null,
-            website: data.website || null,
-            manufacturer_contract_validity: data.manufacturer_contract_validity || null,
-            manufacturer_contract_url: data.manufacturer_contract_url || null,
-            manufacturer_exclusivity_letter_url: data.manufacturer_exclusivity_letter_url || null,
-            observation: data.observation || null,
-            id: entityId,
-            contact_ids: selectedContactIds,
-            product_ids: selectedProductIds,
-        })
+        try {
+            await onSubmit({
+                ...data,
+                type: 'manufacturer',
+                phone: data.phone || null,
+                tax_id: data.tax_id || null,
+                website: data.website || null,
+                manufacturer_contract_validity: data.manufacturer_contract_validity || null,
+                manufacturer_contract_url: data.manufacturer_contract_url || null,
+                manufacturer_exclusivity_letter_url: data.manufacturer_exclusivity_letter_url || null,
+                observation: data.observation || null,
+                id: entityId,
+                contact_ids: selectedContactIds,
+                product_ids: selectedProductIds,
+            })
+        } catch (error) {
+            const globalError = handleSupabaseError(error, setError)
+            if (globalError) {
+                toast(globalError, 'error')
+            }
+        }
     }
 
     // Options configuration
@@ -214,11 +225,11 @@ export function ManufacturerForm({ manufacturer, onSubmit, onCancel }: Manufactu
 
             <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium mb-1.5">Tax ID</label>
+                    <label className="block text-sm font-medium mb-1.5">Tax ID (CNPJ/EIN)</label>
                     <input
                         {...register('tax_id')}
                         className="input"
-                        placeholder="Tax ID"
+                        placeholder="Enter Tax ID"
                     />
                 </div>
                 <div>
@@ -226,7 +237,7 @@ export function ManufacturerForm({ manufacturer, onSubmit, onCancel }: Manufactu
                     <input
                         {...register('phone')}
                         className="input"
-                        placeholder="+1 555 000-0000"
+                        placeholder="(00) 00000-0000"
                     />
                 </div>
             </div>
@@ -363,7 +374,7 @@ export function ManufacturerForm({ manufacturer, onSubmit, onCancel }: Manufactu
                     ) : manufacturer ? (
                         'Save Changes'
                     ) : (
-                        'Create Manufacturer'
+                        'Add Manufacturer'
                     )}
                 </button>
             </div>

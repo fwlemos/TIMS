@@ -24,6 +24,8 @@ interface RelationalNestedFormProps {
     hideWrapper?: boolean
     // Force nested fields to use inline forms
     forceInlineNested?: boolean
+    // Server-side field errors
+    serverErrors?: Record<string, string>
 }
 
 export function RelationalNestedForm({
@@ -42,6 +44,7 @@ export function RelationalNestedForm({
     hideHeader = false,
     hideWrapper = false,
     forceInlineNested = false,
+    serverErrors = {},
 }: RelationalNestedFormProps) {
     const [formData, setFormData] = useState<Record<string, unknown>>(initialData || {})
     const [errors, setErrors] = useState<Record<string, string>>({})
@@ -83,7 +86,8 @@ export function RelationalNestedForm({
 
     const renderField = (field: FormField) => {
         const value = formData[field.name]
-        const fieldError = errors[field.name]
+        // specific: merge local and server errors (local takes precedence if actively validating)
+        const fieldError = errors[field.name] || serverErrors[field.name]
 
         // Handle relational fields with actual RelationalField components
         if (field.type === 'relational' && field.relationalConfig && nestedFieldsConfig && canNestDeeper) {
